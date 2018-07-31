@@ -1,0 +1,29 @@
+다음에 할일은 # TODO 를 찾아
+tfrecord_maker 에서 다 하지말고 kitti_util.py 를 만들어서 코드를 넘겨
+
+7.31
+파이참에서 tensorflow import error: libcublas no such file 어쩌고 나오는데
+pipenv 에서는 import tensorflow가 된다면
+커맨드에서 파이참을 실행해봐
+
+numpy의 matrix multiplication은 matmul을 써야해
+
+7.25
+기존 논문 다 모아서 survey 논문 -> sci 수당 350 받자
+1) cvpr 2018 털어서 최신논문과 그 코드 최대한 확보
+2) 같은 코드 스타일로 재구성
+3) 같은 데이터 쓰되 기존 논문에 비해 테스트 데이터 다양화
+
+네트워크 구조와 loss function 다르지만 하는 일은 train, predict_depth, predict_odom
+-> 공통 부모클래스로 사용성 강화
+data feeder -> mono, stereo, supervised odom 등 다양한 형태의 data feeder 구현하고 공동 사용
+
+~방학: depth-vo-feat, SfmLearner 두개는 구현해보자
+~중간고사: 다른것 두개 더 구현
+~기말고사: 논문작성
+
+dataset 준비
+depth estimation은 sfmlearner의 test_files_eigen.txt와 test_scenes_eigen.txt 이용하고
+odometry는 kitti odometry 전용데이터셋 사용
+논문에서는 eigen split 보다 더 extensive 한 실험할것
+
