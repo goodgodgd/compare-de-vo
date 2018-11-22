@@ -137,11 +137,16 @@ class KittiOdomTfrdMaker(TfrecordsMaker):
         dataset_dir = self.opt.dataset_dir
         dstsize = (self.opt.img_width, self.opt.img_height)
         list_file = "{}/{}.txt".format(dataset_dir, split)
+        print("list file", list_file)
         image_list, intrin_list = self._read_filelist(dataset_dir, list_file)
         assert len(image_list) == len(intrin_list)
 
         def resize(image, dsize=dstsize):
-            return cv2.resize(image, dsize)
+            width, height = dsize
+            if width > 0 and height > 0:
+                return cv2.resize(image, dsize)
+            else:
+                return image
 
         def reshape(intrinsic):
             return np.reshape(intrinsic, (3, 3))
