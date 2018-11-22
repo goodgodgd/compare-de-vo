@@ -1,11 +1,7 @@
 import os
-import settings
 import sys
-import glob
-import math
 import tensorflow as tf
 import numpy as np
-from utils.constants import PricePredictionCode, PredictionTime
 from enum import Enum
 import cv2
 import csv
@@ -18,24 +14,15 @@ class DataFormat(Enum):
 
 
 class RawDataFeeder:
-    def __init__(self, dataset_dir, list_file, data_format: DataFormat, _preproc_fn):
-        self.files = self._read_filelist(dataset_dir, list_file)
-        self._preproc_fn = _preproc_fn
+    def __init__(self, file_list, data_format: DataFormat, _preproc_fn):
+        self.files = file_list
+        self.preproc_fn = _preproc_fn
         self.format = data_format
         self.idx = 0
+        print("RawDataFeeder created for {} files, type={}".format(len(file_list), data_format))
 
     def __len__(self):
         return len(self.files)
-
-    @staticmethod
-    def _read_filelist(dataset_dir, list_file):
-        files = []
-        with open(list_file, 'rb') as f:
-            for line in f:
-                paths = line.split(" ")
-                file = os.path.join(dataset_dir, paths[0], paths[1])
-                files.append(file)
-        return files
 
     # -> get next
     def get_next(self):
@@ -43,19 +30,18 @@ class RawDataFeeder:
         onedata = None
         if self.format == DataFormat.IMAGE:
             image = cv2.imread(self.files[self.idx])
-            onedata = image
-            onedata = onedata.astype(np.uint8)
+            onedata = image.astype(np.uint8)
         elif self.format == DataFormat.CSV:
-            with open(self.files[self.idx], 'rb') as f:
+            with open(self.files[self.idx], 'r') as f:
                 reader = csv.reader(f)
                 intrinsics = list(reader)
                 intrinsics = np.array(intrinsics)
-                onedata = np.reshape(intrinsics, (3, 3))
-                onedata = onedata.astype(np.float32)
+                onedata = intrinsics.astype(np.float32)
 
         if onedata is None:
             raise ValueError("empty data in RawDataFeeder")
-        
+
+        onedata = self.preproc_fn(onedata)
         # wrap a single raw data as tf.train.Features() and return it 
         return self.convert_to_feature(onedata)
     
@@ -80,29 +66,26 @@ class RawDataFeeder:
             return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
 
 
-class TfrecordConverter:
-    def __init__(self, srcpath):
-        self.datafeeders = dict()
-        self._load_data(srcpath)
+class TfrecordsMaker:
+    def __init__(self, _opt):
+        self.opt = _opt
 
-    def _load_data(self, srcpath):
-        self._load_split(srcpath, "train")
-        self._load_split(srcpath, "val")
-
-    def _load_split(self, srcpath, split):
+    def _load_split(self, split):
         raise NotImplementedError()
     
-    def convert(self, tfrecords_path, dataset_name, split):
-        split_data = self.datafeeders[split]
-        num_images = len(split_data["label"])
-        num_shards = max(min(num_images // 100000, 10), 1)
+    def convert(self, split):
+        opt = self.opt
+        data_feeders = self._load_split(split)
+
+        num_images = len(data_feeders["image"])
+        num_shards = max(min(num_images // 5000, 10), 1)
         num_images_per_shard = num_images // num_shards
-        print("\ntfrecord maker started: dataset_name={}, split={}".format(dataset_name, split))
+        print("\ntfrecord maker started: dataset_name={}, split={}".format(opt.dataset_name, split))
         print("num images, shards, images per shard", num_images, num_shards, num_images_per_shard)
 
         for si in range(num_shards):
-            outfile = "{}/{}_{}_{:04d}.tfrecord".format(tfrecords_path, dataset_name, split, si)
-            print("\bConverting: " + outfile)
+            outfile = "{}/{}_{}_{:04d}.tfrecord".format(opt.dump_root, opt.dataset_name, split, si)
+            print("\nconverting: " + outfile)
 
             with tf.python_io.TFRecordWriter(outfile) as writer:
                 for mi in range(num_images_per_shard):
@@ -113,7 +96,7 @@ class TfrecordConverter:
                     # print the percentage-progress.
                     self.print_progress(count=di, total=num_images - 1)
 
-                    raw_example = self.create_next_example_dict(split_data)
+                    raw_example = self.create_next_example_dict(data_feeders)
                     serialized = self.make_serialized_example(raw_example)
                     writer.write(serialized)
 
@@ -140,40 +123,45 @@ class TfrecordConverter:
         pct_complete = float(count) / total
         # Status-message.
         # Note the \r which means the line should overwrite itself.
-        msg = "\r- Progress: {0:.1%}".format(pct_complete)
+        msg = "\r- Progress: {:d}/{:d}, {:.1%}".format(count, total, pct_complete)
         # Print it.
         sys.stdout.write(msg)
         sys.stdout.flush()
 
 
-class MnistMultiLabelConverter(TfrecordConverter):
+class KittiOdomTfrdMaker(TfrecordsMaker):
     def __init__(self, srcpath):
         super().__init__(srcpath)
 
-    def _load_split(self, srcpath, split):
-        # mnist image pattern
-        image_pattern = "{}/{}_data.npy".format(srcpath, split)
-        # mnist label pattern
-        target_pattern = "{}/{}_label.npy".format(srcpath, split)
-        label_pattern = "{}/{}_label.npy".format(srcpath, split)
+    def _load_split(self, split):
+        dataset_dir = self.opt.dataset_dir
+        dstsize = (self.opt.img_width, self.opt.img_height)
+        list_file = "{}/{}.txt".format(dataset_dir, split)
+        image_list, intrin_list = self._read_filelist(dataset_dir, list_file)
+        assert len(image_list) == len(intrin_list)
 
-        def preproc_image(image):
-            return image.astype(np.float32)
+        def resize(image, dsize=dstsize):
+            return cv2.resize(image, dsize)
 
-        def preproc_target(data):
-            np.random.seed(0)
-            return np.random.randint(4, size=(data.shape[0]))
+        def reshape(intrinsic):
+            return np.reshape(intrinsic, (3, 3))
 
-        def preproc_label(data):
-            # labeling table is create by random but result is fixed by 'seed'
-            np.random.seed(0)
-            tablesize = [10, 4]
-            table = np.random.randint(PricePredictionCode.PRICE_FALL, PricePredictionCode.PRICE_RISE + 1, tablesize)
-            print("label table (rows for digits, cols for time):\n", table)
-            # convert single label to multi label
-            multi_label = table[data, :]
-            return multi_label.astype(np.uint8)
-
-        self.datafeeders[split] = {
-            'image': NpyDataFeeder(dataset_dir, list_file, data_format, _preproc_fn),
+        data_feeders = {
+            'image': RawDataFeeder(image_list, DataFormat.IMAGE, _preproc_fn=resize),
+            'intrinsic': RawDataFeeder(intrin_list, DataFormat.CSV, _preproc_fn=reshape),
         }
+        return data_feeders
+
+    @staticmethod
+    def _read_filelist(dataset_dir, list_file):
+        image_files = []
+        intrin_files = []
+        with open(list_file, 'r') as f:
+            for line in f:
+                paths = line.split(" ")
+                filepath = os.path.join(dataset_dir, paths[0], paths[1])
+                imagefile = filepath[:-1] + ".jpg"
+                intrinfile = filepath[:-1] + "_cam.txt"
+                image_files.append(imagefile)
+                intrin_files.append(intrinfile)
+        return image_files, intrin_files
