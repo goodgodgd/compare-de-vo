@@ -18,7 +18,7 @@ class RawDataFeeder:
         self.files = file_list
         self.preproc_fn = _preproc_fn
         self.format = data_format
-        self.idx = 0
+        self.idx = -1
         print("RawDataFeeder created for {} files, type={}".format(len(file_list), data_format))
 
     def __len__(self):
@@ -42,7 +42,7 @@ class RawDataFeeder:
             raise ValueError("empty data in RawDataFeeder")
 
         onedata = self.preproc_fn(onedata)
-        # wrap a single raw data as tf.train.Features() and return it 
+        # wrap a single raw data as tf.train.Features() and return it
         return self.convert_to_feature(onedata)
     
     def convert_to_feature(self, rawdata):
@@ -80,6 +80,7 @@ class TfrecordsMaker:
         num_images = len(data_feeders["image"])
         num_shards = max(min(num_images // 5000, 10), 1)
         num_images_per_shard = num_images // num_shards
+        print("==================================================")
         print("\ntfrecord maker started: dataset_name={}, split={}".format(opt.dataset_name, split))
         print("num images, shards, images per shard", num_images, num_shards, num_images_per_shard)
 
@@ -99,6 +100,8 @@ class TfrecordsMaker:
                     raw_example = self.create_next_example_dict(data_feeders)
                     serialized = self.make_serialized_example(raw_example)
                     writer.write(serialized)
+
+        print("\ntfrecord maker finished: dataset_name={}, split={}".format(opt.dataset_name, split))
 
     @staticmethod
     def create_next_example_dict(feeders):
@@ -129,7 +132,7 @@ class TfrecordsMaker:
         sys.stdout.flush()
 
 
-class KittiOdomTfrdMaker(TfrecordsMaker):
+class KittiTfrdMaker(TfrecordsMaker):
     def __init__(self, srcpath):
         super().__init__(srcpath)
 

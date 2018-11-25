@@ -26,8 +26,8 @@ flags.DEFINE_integer("seq_length",                   3,    "Sequence length for 
 flags.DEFINE_string("checkpoint_dir",               "",    "Directory name to save the checkpoints")
 flags.DEFINE_float("learning_rate",             0.0002,    "Learning rate for adam")
 flags.DEFINE_integer("max_to_keep",                 20,    "Maximum number of checkpoints to save")
-flags.DEFINE_integer("max_steps",               300000,    "Maximum number of training iterations")
-flags.DEFINE_integer("save_ckpt_freq",            5000,    "Save the checkpoint model every save_ckpt_freq iterations")
+# flags.DEFINE_integer("max_steps",               300000,    "Maximum number of training iterations")
+# flags.DEFINE_integer("save_ckpt_freq",            5000,    "Save the checkpoint model every save_ckpt_freq iterations")
 flags.DEFINE_float("alpha_recon_image",           0.85,    "Alpha weight between SSIM and L1 in reconstruction loss")
 
 ##### Configurations about DepthNet & PoseNet of GeoNet #####
@@ -141,8 +141,8 @@ def train():
                 if step % opt.save_ckpt_freq == 0:
                     saver.save(sess, os.path.join(opt.checkpoint_dir, 'model'), global_step=step)
 
-def main(_):
 
+def main(_):
     opt.num_source = opt.seq_length - 1
     opt.num_scales = 4
 
@@ -154,12 +154,7 @@ def main(_):
 
     if opt.mode in ['train_rigid', 'train_flow']:
         train()
-    elif opt.mode == 'test_depth':
-        test_depth(opt)
-    elif opt.mode == 'test_pose':
-        test_pose(opt)
-    elif opt.mode == 'test_flow':
-        test_flow(opt)
+
 
 if __name__ == '__main__':
     tf.app.run()

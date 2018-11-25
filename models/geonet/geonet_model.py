@@ -1,31 +1,28 @@
-from models.geonet_nets import *
-from utils import *
+from models.geonet.geonet_nets import *
+from models.geonet.utils import *
 
 
 class GeoNetModel(object):
 
-    def __init__(self, opt, tgt_image, src_image_stack, intrinsics):
+    def __init__(self, opt):
         self.opt = opt
+        self.tgt_image = None
+        self.src_image_stack = None
+        self.intrinsics = None
+
+    def build_model(self, tgt_image, src_image_stack, intrinsics):
+        opt = self.opt
         self.tgt_image = self.preprocess_image(tgt_image)
         self.src_image_stack = self.preprocess_image(src_image_stack)
         self.intrinsics = intrinsics
 
-        self.build_model()
-
-        if opt.mode not in ['train_rigid', 'train_flow']:
-            return
-
-        self.build_losses()
-
-    def build_model(self):
-        opt = self.opt
         self.tgt_image_pyramid = self.scale_pyramid(self.tgt_image, opt.num_scales)
-        self.tgt_image_tile_pyramid = [tf.tile(img, [opt.num_source, 1, 1, 1]) \
-                                      for img in self.tgt_image_pyramid]
+        self.tgt_image_tile_pyramid = [tf.tile(img, [opt.num_source, 1, 1, 1])
+                                       for img in self.tgt_image_pyramid]
         # src images concated along batch dimension
-        if self.src_image_stack != None:
-            self.src_image_concat = tf.concat([self.src_image_stack[:,:,:,3*i:3*(i+1)] \
-                                    for i in range(opt.num_source)], axis=0)
+        if self.src_image_stack is not None:
+            self.src_image_concat = tf.concat([self.src_image_stack[:,:,:,3*i:3*(i+1)]
+                                               for i in range(opt.num_source)], axis=0)
             self.src_image_concat_pyramid = self.scale_pyramid(self.src_image_concat, opt.num_scales)
 
         if opt.add_dispnet:
@@ -44,6 +41,20 @@ class GeoNetModel(object):
                 if opt.flow_consistency_weight > 0:
                     self.build_flow_consistency()
 
+    def get_loss(self):
+        self.build_losses()
+        return self.total_loss
+
+    def get_pose_pred(self):
+        return self.pred_poses
+
+    def get_depth_pred(self):
+        return self.pred_depth
+
+    def get_flow_pred(self):
+        return self.pred_flow
+
+    # image encoder: dispnet is either resnet50 or vgg
     def build_dispnet(self):
         opt = self.opt
 
@@ -214,9 +225,9 @@ class GeoNetModel(object):
                                 (tf.reduce_mean(self.fwd_full_error_pyramid[s]) + tf.reduce_mean(self.bwd_full_error_pyramid[s]))
                 else:
                     flow_warp_loss += opt.flow_warp_weight*opt.num_source/2 * \
-                                (tf.reduce_sum(tf.reduce_mean(self.fwd_full_error_pyramid[s], axis=3, keep_dims=True) * \
+                                (tf.reduce_sum(tf.reduce_mean(self.fwd_full_error_pyramid[s], axis=3, keepdims=True) * \
                                  self.noc_masks_tgt[s]) / tf.reduce_sum(self.noc_masks_tgt[s]) + \
-                                 tf.reduce_sum(tf.reduce_mean(self.bwd_full_error_pyramid[s], axis=3, keep_dims=True) * \
+                                 tf.reduce_sum(tf.reduce_mean(self.bwd_full_error_pyramid[s], axis=3, keepdims=True) * \
                                  self.noc_masks_src[s]) / tf.reduce_sum(self.noc_masks_src[s]))
 
             # flow_smooth_loss
@@ -228,9 +239,9 @@ class GeoNetModel(object):
             # flow_consistency_loss
             if opt.mode == 'train_flow' and opt.flow_consistency_weight > 0:
                 flow_consistency_loss += opt.flow_consistency_weight/2 * \
-                                (tf.reduce_sum(tf.reduce_mean(self.fwd_flow_diff_pyramid[s] , axis=3, keep_dims=True) * \
+                                (tf.reduce_sum(tf.reduce_mean(self.fwd_flow_diff_pyramid[s] , axis=3, keepdims=True) * \
                                  self.noc_masks_tgt[s]) / tf.reduce_sum(self.noc_masks_tgt[s]) + \
-                                 tf.reduce_sum(tf.reduce_mean(self.bwd_flow_diff_pyramid[s] , axis=3, keep_dims=True) * \
+                                 tf.reduce_sum(tf.reduce_mean(self.bwd_flow_diff_pyramid[s] , axis=3, keepdims=True) * \
                                  self.noc_masks_src[s]) / tf.reduce_sum(self.noc_masks_src[s]))
 
         regularization_loss = tf.add_n(tf.losses.get_regularization_losses())
@@ -261,14 +272,14 @@ class GeoNetModel(object):
     def image_similarity(self, x, y):
         return self.opt.alpha_recon_image * self.SSIM(x, y) + (1-self.opt.alpha_recon_image) * tf.abs(x-y)
 
-    def L2_norm(self, x, axis=3, keep_dims=True):
+    def L2_norm(self, x, axis=3, keepdims=True):
         curr_offset = 1e-10
-        l2_norm = tf.norm(tf.abs(x) + curr_offset, axis=axis, keep_dims=keep_dims)
+        l2_norm = tf.norm(tf.abs(x) + curr_offset, axis=axis, keepdims=keep_dims)
         return l2_norm
 
     def spatial_normalize(self, disp):
         _, curr_h, curr_w, curr_c = disp.get_shape().as_list()
-        disp_mean = tf.reduce_mean(disp, axis=[1,2,3], keep_dims=True)
+        disp_mean = tf.reduce_mean(disp, axis=[1,2,3], keepdims=True)
         disp_mean = tf.tile(disp_mean, [1, curr_h, curr_w, curr_c])
         return disp/disp_mean
 
@@ -300,8 +311,8 @@ class GeoNetModel(object):
         image_gradients_x = self.gradient_x(img)
         image_gradients_y = self.gradient_y(img)
 
-        weights_x = tf.exp(-tf.reduce_mean(tf.abs(image_gradients_x), 3, keep_dims=True))
-        weights_y = tf.exp(-tf.reduce_mean(tf.abs(image_gradients_y), 3, keep_dims=True))
+        weights_x = tf.exp(-tf.reduce_mean(tf.abs(image_gradients_x), 3, keepdims=True))
+        weights_y = tf.exp(-tf.reduce_mean(tf.abs(image_gradients_y), 3, keepdims=True))
 
         smoothness_x = disp_gradients_x * weights_x
         smoothness_y = disp_gradients_y * weights_y

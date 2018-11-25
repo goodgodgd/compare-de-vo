@@ -1,19 +1,17 @@
+import numpy as np
 import tensorflow as tf
-import settings
-from model_handler.data_feeder.dataset_feeder import dataset_input_fn
+from models.geonet.geonet_feeder import dataset_feeder
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
-# TODO: ModelOperator는 abstract로 보내
 
-# tf.Estimator based model trainder, It is not used for test
+# tf.Estimator based model operator, It is not used for test for now
 class ModelOperator:
-    def __init__(self, opt, _model, reshaper):
+    def __init__(self, opt, _model):
         self.opt = opt
         self.model = _model
         self.estimator = self._create_estimator(opt.checkpoint_dir)
-        self.reshape_input = reshaper
-        self.batch_size = 32
+        self.outputs = {"pred_pose": None, "pred_depth": None}
 
     def _create_estimator(self, ckpt_path):
         def cnn_model_fn(features, mode):
@@ -25,26 +23,28 @@ class ModelOperator:
     def _cnn_model_fn(self, features, mode):
         raise NotImplementedError()
 
-    def train(self, data_path, batch_size: int=32, epochs: int=5, show_log: bool=False):
+    def train(self, show_log: bool=False):
         def data_feeder():
-            return self.dataset_feeder(data_path, "train", batch_size, epochs)
+            return self.data_feeder(self.opt, "train")
 
-        self.batch_size = batch_size
         # train the model
         logging_hook = self._get_logging_hook(show_log)
         self.estimator.train(input_fn=data_feeder, hooks=logging_hook)
         print("training finished")
 
-    def evaluate(self, data_path, batch_size: int=32, show_log: bool=False):
+    def evaluate(self, show_log: bool=False):
         # currently EVAL mode is not used
         pass
 
-    def dataset_feeder(self, dirpath, split, batch_size, epochs):
+    @staticmethod
+    def data_feeder(opt, split):
         raise NotImplementedError()
 
     def predict(self, input_image, show_log: bool=False):
-        # currently EVAL mode is not used
         pass
+
+    def save_results(self):
+        raise NotImplementedError()
 
     def _get_logging_hook(self, show_log):
         if show_log is False:
@@ -56,23 +56,28 @@ class ModelOperator:
         raise NotImplementedError()
 
 
-class PosePredModel(ModelOperator):
+class GeoNetOperator(ModelOperator):
     def __init__(self, opt, _model_builder):
         super().__init__(opt, _model_builder)
 
     def _cnn_model_fn(self, features, mode):
-        """Model function for CNN."""
-        src_image_stack = self.reshape_input(features["sources"])
-        # TODO: reshape input 구현
-        tgt_image = self.reshape_input(features["target"], (self.opt.img_width, self.opt.img_height))
-        intrinsic = features["intrinsic"]
+        opt = self.opt
+        src_image_stack = features["sources"]
+        tgt_image = features["target"]
+        intrinsics_ms = features["intrinsics_ms"]
 
-        # TODO: 모델 클래스 변형
-        pred_poses = self.model.build_layers(tgt_image, src_image_stack, intrinsic, mode=mode)
+        self.model.build_model(tgt_image, src_image_stack, intrinsics_ms)
 
         if mode == tf.estimator.ModeKeys.PREDICT:
-            # TODO: poses 파일로 저장
-            pass
+            assert tf.executing_eagerly()
+            if opt.mode == "test_pose":
+                pred_pose = self.model.get_pose_pred()
+                # TODO: stack data
+                self.outputs["pred_pose"] = pred_pose
+            if opt.mode == "test_depth":
+                pred_depth = self.model.get_depth_pred()
+                # TODO: stack data
+                self.outputs["pred_depth"] = pred_depth
 
         if mode == tf.estimator.ModeKeys.TRAIN:
             loss = self.model.get_loss()
@@ -86,11 +91,17 @@ class PosePredModel(ModelOperator):
             # currently EVAL mode is not used
             pass
 
-    # TODO: dataset_input_fn 구현
-    def dataset_feeder(self, dirpath, split, batch_size, epochs):
-        return dataset_input_fn(tfrecord_dirpath=dirpath, split=split, batch_size=batch_size,
-                                train_epochs=epochs, data_type="mnist_multi")
+    @staticmethod
+    def data_feeder(opt, split):
+        return dataset_feeder(opt, split)
+
+    # TODO: save data
+    def save_results(self):
+        if self.opt.mode == "test_pose":
+            outfile = self.opt.output_dir + "/pred_pose.npy"
+            np.save("")
 
     @staticmethod
     def _create_logging_hook():
         raise NotImplementedError()
+

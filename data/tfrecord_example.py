@@ -1,4 +1,4 @@
-from tfrecord_maker import KittiOdomTfrdMaker
+from tfrecord_maker import KittiTfrdMaker
 import argparse
 
 
@@ -12,7 +12,8 @@ opt = parser.parse_args()
 
 
 def convert_to_tfrecords():
-    mnist_cvt = KittiOdomTfrdMaker(opt)
+    print("dataset_dir={}\ndump_root={}".format(opt.dataset_dir, opt.dump_root))
+    mnist_cvt = KittiTfrdMaker(opt)
     mnist_cvt.convert('train')
     mnist_cvt.convert('val')
     mnist_cvt.convert('test')
