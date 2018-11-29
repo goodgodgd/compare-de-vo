@@ -8,6 +8,9 @@ verify_ssl = true
 [packages]
 tensorflow-gpu = "*"
 opencv-python = "*"
+scipy = "*"
+joblib = "*"
+pillow = "*"
 
 [requires]
 python_version = "3.6"

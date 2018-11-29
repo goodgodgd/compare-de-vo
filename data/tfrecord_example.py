@@ -8,15 +8,16 @@ parser.add_argument("--dataset_name",  type=str, required=True, choices=["kitti_
 parser.add_argument("--dump_root",     type=str, required=True, help="where to dump the data")
 parser.add_argument("--img_height",    type=int, default=0,     help="image height")
 parser.add_argument("--img_width",     type=int, default=0,     help="image width")
+
 opt = parser.parse_args()
 
 
 def convert_to_tfrecords():
     print("dataset_dir={}\ndump_root={}".format(opt.dataset_dir, opt.dump_root))
-    mnist_cvt = KittiTfrdMaker(opt)
-    mnist_cvt.convert('train')
-    mnist_cvt.convert('val')
-    mnist_cvt.convert('test')
+    tfmaker = KittiTfrdMaker(opt)
+    tfmaker.convert('train')
+    tfmaker.convert('val')
+    tfmaker.convert('test')
 
 
 if __name__ == "__main__":

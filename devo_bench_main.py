@@ -1,4 +1,4 @@
-# TODO: 코드 출처 표기
+# TODO: code reference
 import os
 import random
 import pprint
@@ -77,8 +77,11 @@ def train():
         os.makedirs(opt.checkpoint_dir)
 
     geonet = GeoNetModel(opt)
+    print("geonet created")
     model_op = GeoNetOperator(opt, geonet)
+    print("modelop creatred")
     model_op.train()
+    print("modelop end")
 
 
 def main(_):
