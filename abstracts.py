@@ -26,3 +26,6 @@ class DataLoader(object):
 
 	def get_test_example_with_idx(self, tgt_idx):
 		raise NotImplementedError()
+
+	def is_valid_sample(self, frames, tgt_idx):
+		raise NotImplementedError()

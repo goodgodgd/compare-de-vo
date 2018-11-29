@@ -2,7 +2,7 @@
 
 source ../settings.sh
 
-python prepare_train_data.py \
+python prepare_stacked_data.py \
 	--dataset_dir="$KITTI_ODOM_RAW" \
 	--dataset_name=kitti_odom \
 	--dump_root="$KITTI_ODOM_STACKED" \

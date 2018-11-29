@@ -77,11 +77,8 @@ def train():
         os.makedirs(opt.checkpoint_dir)
 
     geonet = GeoNetModel(opt)
-    print("geonet created")
     model_op = GeoNetOperator(opt, geonet)
-    print("modelop creatred")
     model_op.train()
-    print("modelop end")
 
 
 def main(_):

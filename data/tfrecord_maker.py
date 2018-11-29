@@ -73,20 +73,20 @@ class TfrecordsMaker:
     def _load_split(self, split):
         raise NotImplementedError()
     
-    def convert(self, split):
+    def make(self, split):
+        print("\n==================================================")
         opt = self.opt
         data_feeders = self._load_split(split)
 
         num_images = len(data_feeders["image"])
         num_shards = max(min(num_images // 5000, 10), 1)
         num_images_per_shard = num_images // num_shards
-        print("==================================================")
-        print("\ntfrecord maker started: dataset_name={}, split={}".format(opt.dataset_name, split))
+        print("tfrecord maker started: dataset_name={}, split={}".format(opt.dataset_name, split))
         print("num images, shards, images per shard", num_images, num_shards, num_images_per_shard)
 
         for si in range(num_shards):
             outfile = "{}/{}_{}_{:04d}.tfrecord".format(opt.dump_root, opt.dataset_name, split, si)
-            print("\nconverting: " + outfile)
+            print("\nconverting to:", outfile)
 
             with tf.python_io.TFRecordWriter(outfile) as writer:
                 for mi in range(num_images_per_shard):

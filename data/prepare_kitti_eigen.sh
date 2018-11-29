@@ -2,7 +2,7 @@
 
 source ../settings.sh
 
-python prepare_train_data.py \
+python prepare_stacked_data.py \
 	--dataset_dir="$KITTI_EIGEN_RAW" \
 	--dataset_name=kitti_raw_eigen \
 	--dump_root="$KITTI_EIGEN_STACKED" \

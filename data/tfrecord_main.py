@@ -12,13 +12,13 @@ parser.add_argument("--img_width",     type=int, default=0,     help="image widt
 opt = parser.parse_args()
 
 
-def convert_to_tfrecords():
+def make_to_tfrecords():
     print("dataset_dir={}\ndump_root={}".format(opt.dataset_dir, opt.dump_root))
     tfmaker = KittiTfrdMaker(opt)
-    tfmaker.convert('train')
-    tfmaker.convert('val')
-    tfmaker.convert('test')
+    tfmaker.make('train')
+    tfmaker.make('val')
+    tfmaker.make('test')
 
 
 if __name__ == "__main__":
-    convert_to_tfrecords()
+    make_to_tfrecords()

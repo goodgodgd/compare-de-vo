@@ -74,17 +74,19 @@ def write_train_frames():
                         tf.write('%s %s\n' % (s, frame))
 
 
-def write_frames_two_splits(frames, filename):
+def write_frames_two_splits(check_validity, frames, filename):
     with open(os.path.join(opt.dump_root, filename), 'w') as f:
-        for frame in frames:
-            f.write(frame+'\n')
+        for i, frame in enumerate(frames):
+            if check_validity(frames, i):
+                f.write(frame+'\n')
 
 
-def write_frames_three_splits(frames, filename):
+def write_frames_three_splits(check_validity, frames, filename):
     with open(os.path.join(opt.dump_root, filename), 'w') as f:
-        for frame in frames:
-            drive, camid, frameid = frame.split(' ')
-            f.write("{}_{} {}\n".format(drive, camid, frameid))
+        for i, frame in enumerate(frames):
+            if check_validity(frames, i):
+                drive, camid, frameid = frame.split(' ')
+                f.write("{}_{} {}\n".format(drive, camid, frameid))
 
 
 def main():
@@ -125,25 +127,29 @@ def main():
                                         img_width=opt.img_width,
                                         seq_length=opt.seq_length)
 
-    def train_feeder(n):
-        return data_loader.get_train_example_with_idx(n)
+    # def train_feeder(n):
+    #     return data_loader.get_train_example_with_idx(n)
+    #
+    # Parallel(n_jobs=opt.num_threads)(delayed(dump_example)(n, train_feeder, data_loader.num_train)
+    #                                  for n in range(data_loader.num_train))
+    #
+    # # save train/val file list in the exactly same way with geonet
+    # write_train_frames()
+    #
+    # def test_feeder(n):
+    #     return data_loader.get_test_example_with_idx(n)
+    #
+    # Parallel(n_jobs=opt.num_threads)(delayed(dump_example)(n, test_feeder, data_loader.num_test)
+    #                                  for n in range(data_loader.num_test))
 
-    Parallel(n_jobs=opt.num_threads)(delayed(dump_example)(n, train_feeder, data_loader.num_train)
-                                     for n in range(data_loader.num_train))
-
-    write_train_frames()
-
-    def test_feeder(n):
-        return data_loader.get_test_example_with_idx(n)
-
-    Parallel(n_jobs=opt.num_threads)(delayed(dump_example)(n, test_feeder, data_loader.num_test)
-                                     for n in range(data_loader.num_test))
+    def is_valid_sample(frames, idx):
+        return data_loader.is_valid_sample(frames, idx)
 
     # save test file list
     if opt.dataset_name == 'kitti_odom':
-        write_frames_two_splits(data_loader.test_frames, "test.txt")
+        write_frames_two_splits(is_valid_sample, data_loader.test_frames, "test.txt")
     if opt.dataset_name == 'kitti_raw_eigen':
-        write_frames_three_splits(data_loader.test_frames, "test.txt")
+        write_frames_three_splits(is_valid_sample, data_loader.test_frames, "test.txt")
 
 
 if __name__ == '__main__':
