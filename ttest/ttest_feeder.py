@@ -10,7 +10,6 @@ flags = tf.app.flags
 flags.DEFINE_string("mode",              "train_rigid",    "(train_rigid, train_flow) or (test_depth, test_pose, test_flow)")
 flags.DEFINE_string("dataset_dir",                  "",    "Dataset directory")
 flags.DEFINE_string("tfrecords_dir",                "",    "tfrecords directory")
-flags.DEFINE_string("checkpoint_dir",               "",    "Directory name to save the checkpoints")
 
 flags.DEFINE_integer("batch_size",                   4,    "The size of of a sample batch")
 flags.DEFINE_integer("num_threads",                 32,    "Number of threads for data loading")
@@ -18,7 +17,13 @@ flags.DEFINE_integer("img_height",                 128,    "Image height")
 flags.DEFINE_integer("img_width",                  416,    "Image width")
 flags.DEFINE_integer("seq_length",                   3,    "Sequence length for each example")
 
+
+# #### Training Configurations #####
+flags.DEFINE_string("checkpoint_dir",               "",    "Directory name to save the checkpoints")
+flags.DEFINE_float("learning_rate",             0.0002,    "Learning rate for adam")
+flags.DEFINE_integer("max_to_keep",                 20,    "Maximum number of checkpoints to save")
 flags.DEFINE_integer("train_epochs",                50,    "number of epochs for training")
+flags.DEFINE_float("alpha_recon_image",           0.85,    "Alpha weight between SSIM and L1 in reconstruction loss")
 
 # #### Additional Configurations #####
 flags.DEFINE_integer("num_source",                   2,    "number of sources")
@@ -46,24 +51,32 @@ opt = flags.FLAGS
 
 def main(_):
     tf.enable_eager_execution()
-    print("eager execution")
-    opt.dataset_dir = "/media/ian/iandata/geonet_data/kitti_raw_eigen"
-    opt.tfrecords_dir = "/media/ian/iandata/geonet_data/tfrecords/kitti_raw_eigen"
-    opt.checkpoint_dir = "../"
-    opt.mode = "test_depth"
-    dataset = dataset_feeder(opt, "train")
-    print("dataset", dataset)
+    print("enable eager execution")
 
+    opt.mode = "test_pose"
+
+    if opt.mode == "test_pose":
+        opt.dataset_dir = "/media/ian/iandata/geonet_data/kitti_raw_eigen"
+        opt.tfrecords_dir = "/media/ian/iandata/geonet_data/tfrecords/kitti_odom"
+        opt.checkpoint_dir = "../"
+        opt.seq_length = 5
+        opt.num_source = 4
+
+    dataset = dataset_feeder(opt, "test")
     geonet = GeoNetModel(opt)
     model_op = GeoNetOperator(opt, geonet)
 
-    for features in dataset:
+    for i, features in enumerate(dataset):
         src_image_stack = features["sources"]
         tgt_image = features["target"]
         intrinsics_ms = features["intrinsics_ms"]
         print("shapes", src_image_stack.shape, tgt_image.shape, intrinsics_ms.shape)
         model_op._cnn_model_fn(features, tf.estimator.ModeKeys.PREDICT)
-        break
+        if i > 3:
+            break
+
+    print(model_op.outputs["pred_pose"])
+
 
 
 if __name__ == '__main__':

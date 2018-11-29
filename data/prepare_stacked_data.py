@@ -1,6 +1,6 @@
 # Mostly based on the code written by Tinghui Zhou: 
 # https://github.com/tinghuiz/SfMLearner/blob/master/data/prepare_train_data.py
-from __future__ import division
+import sys
 import argparse
 import scipy.misc
 import numpy as np
@@ -31,8 +31,7 @@ def concat_image_seq(seq):
 
 
 def dump_example(n, data_feeder, num_split):
-    if n % 2000 == 0:
-        print('Progress {}/{}....'.format(n, num_split))
+    print_progress(n, num_split)
     example = data_feeder(n)
     if example is False:
         return
@@ -54,6 +53,17 @@ def dump_example(n, data_feeder, num_split):
     dump_cam_file = dump_dir + '/%s_cam.txt' % example['file_name']
     with open(dump_cam_file, 'w') as f:
         f.write('%f,0.,%f,0.,%f,%f,0.,0.,1.' % (fx, cx, fy, cy))
+
+
+def print_progress(count, total):
+    # Percentage completion.
+    pct_complete = float(count) / total
+    # Status-message.
+    # Note the \r which means the line should overwrite itself.
+    msg = "\r- Progress: {:d}/{:d}, {:.1%}".format(count, total, pct_complete)
+    # Print it.
+    sys.stdout.write(msg)
+    sys.stdout.flush()
 
 
 def write_train_frames():
@@ -127,20 +137,20 @@ def main():
                                         img_width=opt.img_width,
                                         seq_length=opt.seq_length)
 
-    # def train_feeder(n):
-    #     return data_loader.get_train_example_with_idx(n)
-    #
-    # Parallel(n_jobs=opt.num_threads)(delayed(dump_example)(n, train_feeder, data_loader.num_train)
-    #                                  for n in range(data_loader.num_train))
-    #
-    # # save train/val file list in the exactly same way with geonet
-    # write_train_frames()
-    #
-    # def test_feeder(n):
-    #     return data_loader.get_test_example_with_idx(n)
-    #
-    # Parallel(n_jobs=opt.num_threads)(delayed(dump_example)(n, test_feeder, data_loader.num_test)
-    #                                  for n in range(data_loader.num_test))
+    def train_feeder(n):
+        return data_loader.get_train_example_with_idx(n)
+
+    Parallel(n_jobs=opt.num_threads)(delayed(dump_example)(n, train_feeder, data_loader.num_train)
+                                     for n in range(data_loader.num_train))
+
+    # save train/val file list in the exactly same way with geonet
+    write_train_frames()
+
+    def test_feeder(n):
+        return data_loader.get_test_example_with_idx(n)
+
+    Parallel(n_jobs=opt.num_threads)(delayed(dump_example)(n, test_feeder, data_loader.num_test)
+                                     for n in range(data_loader.num_test))
 
     def is_valid_sample(frames, idx):
         return data_loader.is_valid_sample(frames, idx)

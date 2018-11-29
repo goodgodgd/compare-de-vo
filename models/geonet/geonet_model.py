@@ -225,9 +225,9 @@ class GeoNetModel(object):
                                 (tf.reduce_mean(self.fwd_full_error_pyramid[s]) + tf.reduce_mean(self.bwd_full_error_pyramid[s]))
                 else:
                     flow_warp_loss += opt.flow_warp_weight*opt.num_source/2 * \
-                                (tf.reduce_sum(tf.reduce_mean(self.fwd_full_error_pyramid[s], axis=3, keepdims=True) * \
-                                 self.noc_masks_tgt[s]) / tf.reduce_sum(self.noc_masks_tgt[s]) + \
-                                 tf.reduce_sum(tf.reduce_mean(self.bwd_full_error_pyramid[s], axis=3, keepdims=True) * \
+                                (tf.reduce_sum(tf.reduce_mean(self.fwd_full_error_pyramid[s], axis=3, keepdims=True) *
+                                 self.noc_masks_tgt[s]) / tf.reduce_sum(self.noc_masks_tgt[s]) +
+                                 tf.reduce_sum(tf.reduce_mean(self.bwd_full_error_pyramid[s], axis=3, keepdims=True) *
                                  self.noc_masks_src[s]) / tf.reduce_sum(self.noc_masks_src[s]))
 
             # flow_smooth_loss
@@ -239,9 +239,9 @@ class GeoNetModel(object):
             # flow_consistency_loss
             if opt.mode == 'train_flow' and opt.flow_consistency_weight > 0:
                 flow_consistency_loss += opt.flow_consistency_weight/2 * \
-                                (tf.reduce_sum(tf.reduce_mean(self.fwd_flow_diff_pyramid[s] , axis=3, keepdims=True) * \
-                                 self.noc_masks_tgt[s]) / tf.reduce_sum(self.noc_masks_tgt[s]) + \
-                                 tf.reduce_sum(tf.reduce_mean(self.bwd_flow_diff_pyramid[s] , axis=3, keepdims=True) * \
+                                (tf.reduce_sum(tf.reduce_mean(self.fwd_flow_diff_pyramid[s] , axis=3, keepdims=True) *
+                                 self.noc_masks_tgt[s]) / tf.reduce_sum(self.noc_masks_tgt[s]) +
+                                 tf.reduce_sum(tf.reduce_mean(self.bwd_flow_diff_pyramid[s] , axis=3, keepdims=True) *
                                  self.noc_masks_src[s]) / tf.reduce_sum(self.noc_masks_src[s]))
 
         regularization_loss = tf.add_n(tf.losses.get_regularization_losses())
@@ -274,7 +274,7 @@ class GeoNetModel(object):
 
     def L2_norm(self, x, axis=3, keepdims=True):
         curr_offset = 1e-10
-        l2_norm = tf.norm(tf.abs(x) + curr_offset, axis=axis, keepdims=keep_dims)
+        l2_norm = tf.norm(tf.abs(x) + curr_offset, axis=axis, keepdims=keepdims)
         return l2_norm
 
     def spatial_normalize(self, disp):

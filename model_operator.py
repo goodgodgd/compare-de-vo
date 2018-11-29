@@ -71,15 +71,21 @@ class GeoNetOperator(ModelOperator):
         if mode == tf.estimator.ModeKeys.PREDICT:
             assert tf.executing_eagerly()
             if opt.mode == "test_pose":
+                pred_pose_stack = self.outputs["pred_pose"]
                 pred_pose = self.model.get_pose_pred()
                 print("pose prediction", pred_pose.shape)
-                # TODO: stack data
-                self.outputs["pred_pose"] = pred_pose
+                pred_pose = pred_pose.numpy()
+                pred_pose_stack = pred_pose if pred_pose_stack is None \
+                                            else np.concatenate(pred_pose_stack, pred_pose)
+                self.outputs["pred_pose"] = pred_pose_stack
             if opt.mode == "test_depth":
+                pred_depth_stack = self.outputs["pred_depth"]
                 pred_depth = self.model.get_depth_pred()
-                # TODO: stack data
-                self.outputs["pred_depth"] = pred_depth
                 print("depth predction", pred_depth.shape)
+                pred_depth = pred_depth.numpy()
+                pred_depth_stack = pred_depth if pred_depth_stack is None \
+                                              else np.concatenate(pred_depth_stack, pred_depth)
+                self.outputs["pred_depth"] = pred_depth_stack
 
         if mode == tf.estimator.ModeKeys.TRAIN:
             loss = self.model.get_loss()
