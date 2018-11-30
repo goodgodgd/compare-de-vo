@@ -64,9 +64,6 @@ opt = flags.FLAGS
 
 def train():
     set_random_seed()
-    pp = pprint.PrettyPrinter()
-    pp.pprint(flags.FLAGS.__flags)
-
     if not os.path.exists(opt.checkpoint_dir):
         os.makedirs(opt.checkpoint_dir)
 
@@ -83,11 +80,17 @@ def set_random_seed():
 
 
 def test_pose():
-    pass
+    geonet = GeoNetModel(opt)
+    model_op = GeoNetOperator(opt, geonet)
+    # for features in dataset:
+    #     model_op.predict()
 
 
 def test_depth():
-    pass
+    geonet = GeoNetModel(opt)
+    model_op = GeoNetOperator(opt, geonet)
+    # for features in dataset:
+    #     model_op.predict()
 
 
 def main(_):
@@ -99,6 +102,9 @@ def main(_):
                       or opt.mode in ['train_rigid', 'test_depth']
     opt.add_posenet = opt.add_flownet and opt.flownet_type == 'residual' \
                       or opt.mode in ['train_rigid', 'test_pose']
+
+    pp = pprint.PrettyPrinter()
+    pp.pprint(flags.FLAGS.__flags)
 
     tf.enable_eager_execution()
 

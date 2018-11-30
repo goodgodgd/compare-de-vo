@@ -32,11 +32,11 @@ class RawDataFeeder(object):
             return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
 
 
-# mainly for images
-class FileFeeder(RawDataFeeder):
-    def __init__(self, file_list, _preproc_fn):
+class ImageFeeder(RawDataFeeder):
+    def __init__(self, file_list, dtype, preproc_fn=None):
         self.files = file_list
-        self.preproc_fn = _preproc_fn
+        self.dtype = dtype
+        self.preproc_fn = preproc_fn
         self.idx = -1
         print("FileFeeder created for {} files".format(len(file_list)))
 
@@ -46,11 +46,12 @@ class FileFeeder(RawDataFeeder):
     def get_next(self):
         self.idx = self.idx + 1
         image = cv2.imread(self.files[self.idx])
-        onedata = image.astype(np.uint8)
+        onedata = image.astype(self.dtype)
         if onedata is None:
             raise ValueError("File Not exist: {}".format(self.files[self.idx]))
 
-        onedata = self.preproc_fn(onedata)
+        if self.preproc_fn is not None:
+            onedata = self.preproc_fn(onedata)
         # wrap a single raw data as tf.train.Features()
         return self.convert_to_feature(onedata)
 
@@ -59,21 +60,26 @@ class FileFeeder(RawDataFeeder):
         return self.wrap_bytes(bytes_data)
 
 
-# mainly for gt data (depths, poses)
-class ListFeeder(RawDataFeeder):
-    def __init__(self, data, _preproc_fn):
-        # data: list of numpy arrays
-        self.data = data
-        self.preproc_fn = _preproc_fn
+class TextFeeder(RawDataFeeder):
+    def __init__(self, file_list, dtype, preproc_fn=None):
+        self.files = file_list
+        self.dtype = dtype
+        self.preproc_fn = preproc_fn
         self.idx = -1
-        print("NpyFeeder created for {} files".format(len(data)))
+        print("FileFeeder created for {} files".format(len(file_list)))
 
     def __len__(self):
-        return len(self.data)
+        return len(self.files)
 
     def get_next(self):
         self.idx = self.idx + 1
-        onedata = self.preproc_fn(self.data[self.idx])
+        data = np.loadtxt(self.files[self.idx])
+        onedata = data.astype(self.dtype)
+        if onedata is None:
+            raise ValueError("File Not exist: {}".format(self.files[self.idx]))
+
+        if self.preproc_fn is not None:
+            onedata = self.preproc_fn(onedata)
         # wrap a single raw data as tf.train.Features()
         return self.convert_to_feature(onedata)
 

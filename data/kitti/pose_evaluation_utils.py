@@ -391,3 +391,41 @@ def dump_pose_seq_TUM(out_file, poses, times):
             rot = this_pose[:3, :3]
             qw, qx, qy, qz = rot2quat(rot)
             f.write('%f %f %f %f %f %f %f %f\n' % (times[p], tx, ty, tz, qx, qy, qz, qw))
+
+
+def format_pose_seq_TUM(poses):
+    if isinstance(poses, list):
+        tum_poses = format_pose_list(poses)
+    elif isinstance(poses, np.ndarray):
+        tum_poses = format_npy_array(poses)
+    else:
+        tum_poses = None
+    return tum_poses
+
+
+def format_pose_list(poses):
+    # poses: list of [tx, ty, tz, rx, ry, rz]
+    pose_seq = []
+    # First frame as the origin
+    first_pose = pose_vec_to_mat(poses[0])
+    for pose in poses:
+        this_pose = pose_vec_to_mat(pose)
+        # this_pose = np.dot(this_pose, np.linalg.inv(first_pose))
+        this_pose = np.dot(first_pose, np.linalg.inv(this_pose))
+        tx = this_pose[0, 3]
+        ty = this_pose[1, 3]
+        tz = this_pose[2, 3]
+        rot = this_pose[:3, :3]
+        qw, qx, qy, qz = rot2quat(rot)
+        pose = np.array([tx, ty, tz, qx, qy, qz, qw])
+        pose_seq.append(pose)
+    pose_seq = np.array(pose_seq)
+    return pose_seq
+
+
+def format_npy_array(poses):
+    pose_list = []
+    for i in range(poses.shape[0]):
+        pose_list.append(poses[i, :])
+    return format_pose_list(pose_list)
+

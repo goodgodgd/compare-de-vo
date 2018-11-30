@@ -8,13 +8,8 @@ import numpy as np
 from glob import glob
 from joblib import Parallel, delayed
 
-# project root 경로 추가
-module_path = os.path.dirname(os.path.abspath(__file__))
-module_path = os.path.dirname(module_path)
-if module_path not in sys.path:
-    sys.path.append(module_path)
-
-from data.kitti.generate_pose_snippets import generate_pose_snippets
+module_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if module_path not in sys.path: sys.path.append(module_path)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset_dir",   type=str, required=True, help="where the dataset is stored")
@@ -44,23 +39,24 @@ def dump_example(n, data_feeder, num_split):
     if example is False:
         return
     image_seq = concat_image_seq(example['image_seq'])
+    gt = example['gt']
     intrinsics = example['intrinsics']
-    fx = intrinsics[0, 0]
-    fy = intrinsics[1, 1]
-    cx = intrinsics[0, 2]
-    cy = intrinsics[1, 2]
     dump_dir = os.path.join(opt.dump_root, example['folder_name'])
 
     try: 
-        os.makedirs(dump_dir)
+        os.makedirs(os.path.join(dump_dir, 'gt'))
     except OSError:
-        if not os.path.isdir(dump_dir):
+        if not os.path.isdir(os.path.join(dump_dir, 'gt')):
             raise
-    dump_img_file = dump_dir + '/%s.jpg' % example['file_name']
+
+    dump_img_file = '{}/{}.jpg'.format(dump_dir, example['file_name'])
     scipy.misc.imsave(dump_img_file, image_seq.astype(np.uint8))
-    dump_cam_file = dump_dir + '/%s_cam.txt' % example['file_name']
-    with open(dump_cam_file, 'w') as f:
-        f.write('%f,0.,%f,0.,%f,%f,0.,0.,1.' % (fx, cx, fy, cy))
+    dump_gt_file = '{}/gt/{}_gt.txt'.format(dump_dir, example['file_name'])
+    np.savetxt(dump_gt_file, gt, fmt='%.5f', delimiter=',')
+    # save intrinsic only once
+    if int(example['file_name']) == 5:
+        dump_cam_file = '{}/intrinsics.txt'.format(dump_dir)
+        np.savetxt(dump_cam_file, intrinsics, fmt='%.5f', delimiter=',')
 
 
 def print_progress(count, total):
@@ -75,7 +71,6 @@ def print_progress(count, total):
 
 
 def write_train_frames():
-    # save train/val filelist
     np.random.seed(8964)
     subfolders = os.listdir(opt.dump_root)
     with open(os.path.join(opt.dump_root, 'train.txt'), 'w') as tf:
@@ -107,14 +102,6 @@ def write_frames_three_splits(check_validity, frames, filename):
                 f.write("{}_{} {}\n".format(drive, camid, frameid))
 
 
-def write_poses(data_loader):
-    # write poses to text files for each frame
-    for seq in data_loader.train_seqs:
-        generate_pose_snippets(opt, seq)
-    for seq in data_loader.test_seqs:
-        generate_pose_snippets(opt, seq)
-
-
 def main():
     if not os.path.exists(opt.dump_root):
         os.makedirs(opt.dump_root)
@@ -122,14 +109,14 @@ def main():
     data_loader = None
 
     if opt.dataset_name == 'kitti_odom':
-        from kitti.kitti_odom_loader import KittiOdomLoader
+        from data.kitti.kitti_odom_loader import KittiOdomLoader
         data_loader = KittiOdomLoader(opt.dataset_dir,
                                       img_height=opt.img_height,
                                       img_width=opt.img_width,
                                       seq_length=opt.seq_length)
 
     if opt.dataset_name == 'kitti_raw_eigen':
-        from kitti.kitti_raw_loader import KittiRawLoader
+        from data.kitti.kitti_raw_loader import KittiRawLoader
         data_loader = KittiRawLoader(opt.dataset_dir,
                                      split='eigen',
                                      img_height=opt.img_height,
@@ -138,7 +125,7 @@ def main():
                                      remove_static=opt.remove_static)
 
     if opt.dataset_name == 'kitti_raw_stereo':
-        from kitti.kitti_raw_loader import KittiRawLoader
+        from data.kitti.kitti_raw_loader import KittiRawLoader
         data_loader = KittiRawLoader(opt.dataset_dir,
                                      split='stereo',
                                      img_height=opt.img_height,
@@ -147,34 +134,28 @@ def main():
                                      remove_static=opt.remove_static)
 
     if opt.dataset_name == 'cityscapes':
-        from cityscapes.cityscapes_loader import cityscapes_loader
+        from data.cityscapes.cityscapes_loader import cityscapes_loader
         data_loader = cityscapes_loader(opt.dataset_dir,
                                         img_height=opt.img_height,
                                         img_width=opt.img_width,
                                         seq_length=opt.seq_length)
 
-    # write gt poses for all sequences
-    if opt.dataset_name == 'kitti_odom':
-        write_poses(data_loader)
-
     def train_feeder(n):
         return data_loader.get_train_example_with_idx(n)
-
+    # save train/val data
     Parallel(n_jobs=opt.num_threads)(delayed(dump_example)(n, train_feeder, data_loader.num_train)
                                      for n in range(data_loader.num_train))
-
-    # save train/val file list in the exactly same way with geonet
+    # save train/val file list in the exactly same way with GeoNet
     write_train_frames()
 
     def test_feeder(n):
         return data_loader.get_test_example_with_idx(n)
-
+    # save test data
     Parallel(n_jobs=opt.num_threads)(delayed(dump_example)(n, test_feeder, data_loader.num_test)
                                      for n in range(data_loader.num_test))
 
     def is_valid_sample(frames, idx):
         return data_loader.is_valid_sample(frames, idx)
-
     # save test file list
     if opt.dataset_name == 'kitti_odom':
         write_frames_two_splits(is_valid_sample, data_loader.test_frames, "test.txt")

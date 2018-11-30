@@ -1,10 +1,9 @@
 import os
 import sys
-import tensorflow as tf
-import numpy as np
-import cv2
-import csv
-from datafeeders_for_tfrd import *
+
+module_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if module_path not in sys.path: sys.path.append(module_path)
+from data.datafeeders_for_tfrd import *
 
 
 class TfrecordsMaker:
@@ -78,14 +77,15 @@ class KittiTfrdMaker(TfrecordsMaker):
         super().__init__(srcpath)
 
     def _load_split(self, split):
-        # TODO: 바뀐 입력데이터에 맞춰 수정할 것
-
         dataset_dir = self.opt.dataset_dir
         dstsize = (self.opt.img_width, self.opt.img_height)
         list_file = "{}/{}.txt".format(dataset_dir, split)
-        print("list file", list_file)
-        image_list, intrin_list = self._read_filelist(dataset_dir, list_file)
-        assert len(image_list) == len(intrin_list)
+        print("frame list file for {}:".format(split), list_file)
+        image_list, gt_list, cam_file = self._read_filelist(dataset_dir, list_file)
+        assert len(image_list) == len(gt_list)
+
+        intrinsics = np.loadtxt(cam_file, dtype=np.float32)
+        num_frames = len(image_list)
 
         def resize(image, dsize=dstsize):
             width, height = dsize
@@ -98,22 +98,28 @@ class KittiTfrdMaker(TfrecordsMaker):
             return np.reshape(intrinsic, (3, 3))
 
         data_feeders = {
-            'image': FileFeeder(image_list, _preproc_fn=resize),
+            'image': ImageFeeder(image_list, preproc_fn=resize),
+            'gt': TextFeeder(gt_list, preproc_fn=reshape),
             'intrinsic': ConstFeeder(intrinsics, num_frames),
-            'gt': ListFeeder(gt_list, _preproc_fn=reshape),
         }
         return data_feeders
 
     @staticmethod
-    def _read_filelist(dataset_dir, list_file):
+    def _read_filelist(dataset_root, list_file):
         image_files = []
-        intrin_files = []
+        gt_files = []
+        cam_file = None
+
         with open(list_file, 'r') as f:
             for line in f:
                 paths = line.split(" ")
-                filepath = os.path.join(dataset_dir, paths[0], paths[1])
-                imagefile = filepath[:-1] + ".jpg"
-                intrinfile = filepath[:-1] + "_cam.txt"
-                image_files.append(imagefile)
-                intrin_files.append(intrinfile)
-        return image_files, intrin_files
+                seq_dir = paths[0]
+                frame_id = paths[1][:-1]
+
+                imgfile = os.path.join(dataset_root, seq_dir, frame_id+".jpg")
+                image_files.append(imgfile)
+                gtfile = os.path.join(dataset_root, seq_dir, "gt", frame_id+"_gt.txt")
+                gt_files.append(gtfile)
+                if cam_file is None:
+                    cam_file = os.path.join(dataset_root, seq_dir, "intrinsics.txt")
+        return image_files, gt_files, cam_file

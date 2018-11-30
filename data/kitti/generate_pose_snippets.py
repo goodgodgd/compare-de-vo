@@ -1,33 +1,15 @@
 import os
 import numpy as np
 from glob import glob
-from data.kitti.pose_evaluation_utils import mat2euler, dump_pose_seq_TUM
+from data.kitti.pose_evaluation_utils import mat2euler, pose_vec_to_mat, rot2quat
 
 
-def is_valid_sample(frames, tgt_idx, seq_length):
-    N = len(frames)
-    tgt_drive, _ = frames[tgt_idx].split(' ')
-    max_src_offset = int((seq_length - 1)/2)
-    min_src_idx = tgt_idx - max_src_offset
-    max_src_idx = tgt_idx + max_src_offset
-    if min_src_idx < 0 or max_src_idx >= N:
-        return False
-    min_src_drive, _ = frames[min_src_idx].split(' ')
-    max_src_drive, _ = frames[max_src_idx].split(' ')
-    if tgt_drive == min_src_drive and tgt_drive == max_src_drive:
-        return True
-    return False
-
-
-def generate_pose_snippets(opt, seq_id):
-    pose_gt_dir = os.path.join(opt.dataset_dir, 'poses')
-    seq_dir = os.path.join(opt.dataset_dir, 'sequences', '{:02d}'.format(seq_id))
+def generate_pose_snippets(dataset_dir, seq_id, seq_length):
+    pose_gt_dir = os.path.join(dataset_dir, 'poses')
+    seq_dir = os.path.join(dataset_dir, 'sequences', '{:02d}'.format(seq_id))
     img_dir = os.path.join(seq_dir, 'image_2')
     N = len(glob(img_dir + '/*.png'))
-    test_frames = ['%.2d %.6d' % (seq_id, n) for n in range(N)]
-    with open(os.path.join(seq_dir, 'times.txt'), 'r') as f:
-        times = f.readlines()
-    times = np.array([float(s[:-1]) for s in times])
+    frames = ['%.2d %.6d' % (seq_id, n) for n in range(N)]
 
     pose_file = os.path.join(pose_gt_dir, '{:02d}.txt'.format(seq_id))
     with open(pose_file, 'r') as f:
@@ -41,15 +23,30 @@ def generate_pose_snippets(opt, seq_id):
         poses_gt.append(tran.tolist() + [rx, ry, rz])
     poses_gt = np.array(poses_gt)
 
-    out_dir = os.path.join(opt.dump_root, '{:02d}'.format(seq_id))
-    if not os.path.isdir(out_dir):
-        os.makedirs(out_dir)
-
-    max_src_offset = (opt.seq_length - 1)//2
+    half_offset = (seq_length - 1)//2
+    pose_sequences = []
     for tgt_idx in range(N):
-        if not is_valid_sample(test_frames, tgt_idx, opt.seq_length):
+        # pad invalid range
+        if not is_valid_sample(frames, tgt_idx, seq_length):
+            pose_sequences.append(0)
             continue
-        pred_poses = poses_gt[tgt_idx - max_src_offset:tgt_idx + max_src_offset + 1]
-        curr_times = times[tgt_idx - max_src_offset:tgt_idx + max_src_offset + 1]
-        out_file = os.path.join(out_dir, '{:06d}_pose.txt'.format(tgt_idx))
-        dump_pose_seq_TUM(out_file, pred_poses, curr_times)
+        # add short pose sequence
+        pred_poses = poses_gt[tgt_idx - half_offset:tgt_idx + half_offset + 1]
+        pose_seq = pose_seq_TUM(pred_poses)
+        pose_sequences.append(pose_seq)
+    return pose_sequences
+
+
+def is_valid_sample(frames, tgt_idx, seq_length):
+    N = len(frames)
+    tgt_drive, _ = frames[tgt_idx].split(' ')
+    max_src_offset = int((seq_length - 1)/2)
+    min_src_idx = tgt_idx - max_src_offset
+    max_src_idx = tgt_idx + max_src_offset
+    if min_src_idx < 0 or max_src_idx >= N:
+        return False
+    min_src_drive, _ = frames[min_src_idx].split(' ')
+    max_src_drive, _ = frames[max_src_idx].split(' ')
+    assert (tgt_drive == min_src_drive and tgt_drive == max_src_drive)
+    return True
+

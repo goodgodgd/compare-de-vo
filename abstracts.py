@@ -14,9 +14,12 @@ def data_feeder():
 class DataLoader(object):
 	def __init__(self):
 		self.train_frames = []
+		self.train_gts = []
 		self.num_train = 0
 		self.test_frames = []
+		self.test_gts = []
 		self.num_test = 0
+		self.intrinsics = dict()
 
 	def collect_frames(self):
 		raise NotImplementedError()
