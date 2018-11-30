@@ -127,7 +127,7 @@ class KittiOdomLoader(DataLoader):
         proj_v2c = np.concatenate((proj_v2c, filler), axis=0)
         return proj_c2p, proj_v2c
 
-    def scale_intrinsics(self,mat, sx, sy):
+    def scale_intrinsics(self, mat, sx, sy):
         out = np.copy(mat)
         out[0,0] *= sx
         out[0,2] *= sx

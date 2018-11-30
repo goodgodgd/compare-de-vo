@@ -1,12 +1,20 @@
 # Mostly based on the code written by Tinghui Zhou: 
 # https://github.com/tinghuiz/SfMLearner/blob/master/data/prepare_train_data.py
+import os
 import sys
 import argparse
 import scipy.misc
 import numpy as np
 from glob import glob
 from joblib import Parallel, delayed
-import os
+
+# project root 경로 추가
+module_path = os.path.dirname(os.path.abspath(__file__))
+module_path = os.path.dirname(module_path)
+if module_path not in sys.path:
+    sys.path.append(module_path)
+
+from data.kitti.generate_pose_snippets import generate_pose_snippets
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset_dir",   type=str, required=True, help="where the dataset is stored")
@@ -99,6 +107,14 @@ def write_frames_three_splits(check_validity, frames, filename):
                 f.write("{}_{} {}\n".format(drive, camid, frameid))
 
 
+def write_poses(data_loader):
+    # write poses to text files for each frame
+    for seq in data_loader.train_seqs:
+        generate_pose_snippets(opt, seq)
+    for seq in data_loader.test_seqs:
+        generate_pose_snippets(opt, seq)
+
+
 def main():
     if not os.path.exists(opt.dump_root):
         os.makedirs(opt.dump_root)
@@ -136,6 +152,10 @@ def main():
                                         img_height=opt.img_height,
                                         img_width=opt.img_width,
                                         seq_length=opt.seq_length)
+
+    # write gt poses for all sequences
+    if opt.dataset_name == 'kitti_odom':
+        write_poses(data_loader)
 
     def train_feeder(n):
         return data_loader.get_train_example_with_idx(n)

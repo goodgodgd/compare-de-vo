@@ -1,18 +1,8 @@
-from __future__ import division
 import os
-import math
-import scipy.misc
 import numpy as np
-import argparse
 from glob import glob
-from pose_evaluation_utils import mat2euler, dump_pose_seq_TUM
+from data.kitti.pose_evaluation_utils import mat2euler, dump_pose_seq_TUM
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--dataset_dir", type=str, help="path to kitti odometry dataset")
-parser.add_argument("--output_dir",  type=str, help="path to output pose snippets")
-parser.add_argument("--seq_id",      type=int, default=9, help="sequence id to generate groundtruth pose snippets")
-parser.add_argument("--seq_length",  type=int, default=5, help="sequence length of pose snippets")
-args = parser.parse_args()
 
 def is_valid_sample(frames, tgt_idx, seq_length):
     N = len(frames)
@@ -28,19 +18,19 @@ def is_valid_sample(frames, tgt_idx, seq_length):
         return True
     return False
 
-def main():
-    pose_gt_dir = args.dataset_dir + 'poses/'
-    if not os.path.isdir(args.output_dir):
-        os.makedirs(args.output_dir)
-    seq_dir = os.path.join(args.dataset_dir, 'sequences', '%.2d' % args.seq_id)
+
+def generate_pose_snippets(opt, seq_id):
+    pose_gt_dir = os.path.join(opt.dataset_dir, 'poses')
+    seq_dir = os.path.join(opt.dataset_dir, 'sequences', '{:02d}'.format(seq_id))
     img_dir = os.path.join(seq_dir, 'image_2')
     N = len(glob(img_dir + '/*.png'))
-    test_frames = ['%.2d %.6d' % (args.seq_id, n) for n in range(N)]
-    with open(args.dataset_dir + 'sequences/%.2d/times.txt' % args.seq_id, 'r') as f:
+    test_frames = ['%.2d %.6d' % (seq_id, n) for n in range(N)]
+    with open(os.path.join(seq_dir, 'times.txt'), 'r') as f:
         times = f.readlines()
     times = np.array([float(s[:-1]) for s in times])
 
-    with open(pose_gt_dir + '%.2d.txt' % args.seq_id, 'r') as f:
+    pose_file = os.path.join(pose_gt_dir, '{:02d}.txt'.format(seq_id))
+    with open(pose_file, 'r') as f:
         poses = f.readlines()
     poses_gt = []
     for pose in poses:
@@ -51,16 +41,15 @@ def main():
         poses_gt.append(tran.tolist() + [rx, ry, rz])
     poses_gt = np.array(poses_gt)
 
-    max_src_offset = (args.seq_length - 1)//2
+    out_dir = os.path.join(opt.dump_root, '{:02d}'.format(seq_id))
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
+
+    max_src_offset = (opt.seq_length - 1)//2
     for tgt_idx in range(N):
-        if not is_valid_sample(test_frames, tgt_idx, args.seq_length):
+        if not is_valid_sample(test_frames, tgt_idx, opt.seq_length):
             continue
-        if tgt_idx % 100 == 0:
-            print('Progress: %d/%d' % (tgt_idx, N))
         pred_poses = poses_gt[tgt_idx - max_src_offset:tgt_idx + max_src_offset + 1]
         curr_times = times[tgt_idx - max_src_offset:tgt_idx + max_src_offset + 1]
-        out_file = args.output_dir + '%.6d.txt' % (tgt_idx - max_src_offset)
+        out_file = os.path.join(out_dir, '{:06d}_pose.txt'.format(tgt_idx))
         dump_pose_seq_TUM(out_file, pred_poses, curr_times)
-
-main()
-
