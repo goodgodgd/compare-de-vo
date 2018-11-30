@@ -6,10 +6,8 @@ import numpy as np
 import tensorflow as tf
 
 from models.geonet.geonet_model import *
-# from geonet_test_depth import *
-# from geonet_test_pose import *
-# from geonet_test_flow import *
-# from data_loader import DataLoader
+from geonet_test_depth import *
+from geonet_test_pose import *
 from model_operator import GeoNetOperator
 
 
@@ -65,13 +63,9 @@ opt = flags.FLAGS
 
 
 def train():
-    seed = 8964
-    tf.set_random_seed(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-
-    # pp = pprint.PrettyPrinter()
-    # pp.pprint(flags.FLAGS.__flags)
+    set_random_seed()
+    pp = pprint.PrettyPrinter()
+    pp.pprint(flags.FLAGS.__flags)
 
     if not os.path.exists(opt.checkpoint_dir):
         os.makedirs(opt.checkpoint_dir)
@@ -79,6 +73,21 @@ def train():
     geonet = GeoNetModel(opt)
     model_op = GeoNetOperator(opt, geonet)
     model_op.train()
+
+
+def set_random_seed():
+    seed = 8964
+    tf.set_random_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
+
+def test_pose():
+    pass
+
+
+def test_depth():
+    pass
 
 
 def main(_):
@@ -93,14 +102,12 @@ def main(_):
 
     tf.enable_eager_execution()
 
-    if opt.mode in ['train_rigid', 'train_flow']:
+    if opt.mode == 'train_rigid':
         train()
-    # elif opt.mode == 'test_depth':
-    #     test_depth(opt)
-    # elif opt.mode == 'test_pose':
-    #     test_pose(opt)
-    # elif opt.mode == 'test_flow':
-    #     test_flow(opt)
+    elif opt.mode == 'test_depth':
+        test_depth(opt)
+    elif opt.mode == 'test_pose':
+        test_pose(opt)
 
 
 if __name__ == '__main__':

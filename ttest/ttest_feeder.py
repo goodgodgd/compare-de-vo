@@ -60,6 +60,7 @@ def main(_):
         opt.tfrecords_dir = "/media/ian/iandata/geonet_data/tfrecords/kitti_odom"
         opt.checkpoint_dir = "../"
         opt.seq_length = 5
+        opt.batch_size = 4
         opt.num_source = 4
 
     dataset = dataset_feeder(opt, "test")
