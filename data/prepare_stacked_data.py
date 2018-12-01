@@ -140,6 +140,8 @@ def main():
                                         img_width=opt.img_width,
                                         seq_length=opt.seq_length)
 
+    return
+
     def train_feeder(n):
         return data_loader.get_train_example_with_idx(n)
     # save train/val data

@@ -9,6 +9,6 @@ python prepare_stacked_data.py \
 	--seq_length=3 \
 	--img_height=128 \
 	--img_width=416 \
-	--num_threads=16 \
+	--num_threads=8 \
 	--remove_static 
 

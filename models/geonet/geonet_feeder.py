@@ -24,6 +24,7 @@ def parse_example(record, img_height, img_width, seq_length, num_scales):
     # np.to_string()으로 ndarray 이미지를 string으로 변환한 다음 저장했기 때문에 tf.string으로 불러옴
     keys_to_features = {
         "image": tf.FixedLenFeature((), tf.string, default_value=""),
+        "gt": tf.FixedLenFeature((), tf.string, default_value=""),
         "intrinsic": tf.FixedLenFeature((), tf.string, default_value=""),
     }
     parsed = tf.parse_single_example(record, keys_to_features)
@@ -36,10 +37,13 @@ def parse_example(record, img_height, img_width, seq_length, num_scales):
     image = tf.reshape(image, shape=(img_height, img_width*seq_length, 3))
     tgt_image, src_image_stack = unpack_image_sequence(image, img_height, img_width, seq_length)
 
+    gtruth = tf.decode_raw(parsed["gt"], tf.float32)
+
     intrinsic = tf.decode_raw(parsed["intrinsic"], tf.float32)
     intrinsic = tf.reshape(intrinsic, shape=(3, 3))
     intrinsics_ms = get_multi_scale_intrinsics(intrinsic, num_scales)
-    return {"target": tgt_image, "sources": src_image_stack, "intrinsics_ms": intrinsics_ms}
+    return {"target": tgt_image, "sources": src_image_stack,
+            "gt": gtruth, "intrinsics_ms": intrinsics_ms}
 
 
 def unpack_image_sequence(image_seq, img_height, img_width, seq_length):

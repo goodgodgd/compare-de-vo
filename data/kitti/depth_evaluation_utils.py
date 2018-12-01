@@ -75,36 +75,50 @@ def read_text_lines(file_path):
     lines = [l.rstrip() for l in lines]
     return lines
 
+
 def read_file_data(files, data_root):
+    # static variable in function
+    f = read_file_data
+    f.im_size = getattr(f, 'im_size', [0, 0])
+
     gt_files = []
     gt_calib = []
     im_sizes = []
     im_files = []
     cams = []
     num_probs = 0
-    for filename in files:
+    for i, filename in enumerate(files):
         filename = filename.split()[0]
         splits = filename.split('/')
 #         camera_id = filename[-1]   # 2 is left, 3 is right
         date = splits[0]
         im_id = splits[4][:10]
-        file_root = '{}/{}'
-        
-        im = filename
         vel = '{}/{}/velodyne_points/data/{}.bin'.format(splits[0], splits[1], im_id)
+        imfile = os.path.join(data_root, filename)
 
-        if os.path.isfile(data_root + im):
-            gt_files.append(data_root + vel)
-            gt_calib.append(data_root + date + '/')
-            im_sizes.append(cv2.imread(data_root + im).shape[:2])
-            im_files.append(data_root + im)
+        if os.path.isfile(imfile):
+            gt_files.append(os.path.join(data_root, vel))
+            gt_calib.append(os.path.join(data_root, date))
+
+            # im_sizes.append(cv2.imread(imfile).shape[:2])
+            # instead of opening all files just to read image size (like above line),
+            # read once, keep it in static var, and occasionally check it
+            if f.im_size[0] == 0:
+                f.im_size = cv2.imread(imfile).shape[:2]
+            if f.im_size[0] > 0 and i % 100 == 0:
+                neo_size = cv2.imread(imfile).shape[:2]
+                assert f.im_size == neo_size, "size changed? {} != {}, {}, {}"\
+                    .format(f.im_size, neo_size, im_files[0], imfile)
+            im_sizes.append(f.im_size)
+
+            im_files.append(imfile)
             cams.append(2)
         else:
             num_probs += 1
-            print('{} missing'.format(data_root + im))
+            print('{} missing'.format(imfile))
     # print(num_probs, 'files missing')
-
     return gt_files, gt_calib, im_sizes, im_files, cams
+
 
 def load_velodyne_points(file_name):
     # adapted from https://github.com/hunse/kitti
@@ -166,6 +180,7 @@ def get_focal_length_baseline(calib_dir, cam=2):
 def sub2ind(matrixSize, rowSub, colSub):
     m, n = matrixSize
     return rowSub * (n-1) + colSub - 1
+
 
 def generate_depth_map(calib_dir, velo_file_name, im_shape, cam=2, interp=False, vel_depth=False):
     # load calibration files

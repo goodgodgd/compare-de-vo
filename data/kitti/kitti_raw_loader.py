@@ -5,8 +5,11 @@ import numpy as np
 from glob import glob
 import os
 import scipy.misc
-sys.path.append('..')
+
+module_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if module_path not in sys.path: sys.path.append(module_path)
 from abstracts import DataLoader
+from data.kitti.depth_evaluation_utils import read_file_data, generate_depth_map
 
 
 class KittiRawLoader(DataLoader):
@@ -15,74 +18,132 @@ class KittiRawLoader(DataLoader):
                  split,
                  img_height=128,
                  img_width=416,
-                 seq_length=5,
+                 seq_length=3,
                  remove_static=True):
-        DataLoader.__init__(self)
-        dir_path = os.path.dirname(os.path.realpath(__file__))        
-        test_scene_file = os.path.join(dir_path, 'test_scenes_' + split + '.txt')
-        with open(test_scene_file, 'r') as f:
-            test_scenes = f.readlines()
-        self.test_scenes = [t[:-1] for t in test_scenes]
+        super().__init__()
         self.dataset_dir = dataset_dir
         self.img_height = img_height
         self.img_width = img_width
         self.seq_length = seq_length
         self.remove_static = remove_static
         self.cam_ids = ['02', '03']
-        self.date_list = ['2011_09_26', '2011_09_28', '2011_09_29', 
-                          '2011_09_30', '2011_10_03']
+        self.date_list = ['2011_09_26', '2011_09_28', '2011_09_29', '2011_09_30', '2011_10_03']
+        self.test_scenes = self.read_test_scenes(split)
         if self.remove_static:
-            static_frames_file = os.path.join(dir_path, 'static_frames.txt')
-            self.collect_static_frames(static_frames_file)
+            self.static_frames = self.collect_static_frames()
 
         self.collect_frames()
 
-    def collect_static_frames(self, static_frames_file):
+    @staticmethod
+    def read_test_scenes(split):
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        test_scene_file = os.path.join(dir_path, 'test_scenes_{}.txt'.format(split))
+        with open(test_scene_file, 'r') as f:
+            test_scenes = f.readlines()
+        test_scenes = [t[:-1] for t in test_scenes]
+        return test_scenes
+
+    def collect_static_frames(self):
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        static_frames_file = os.path.join(dir_path, 'static_frames.txt')
         with open(static_frames_file, 'r') as f:
             frames = f.readlines()
-        self.static_frames = []
+        static_frames = []
         for fr in frames:
             if fr == '\n':
                 continue
             date, drive, frame_id = fr.split(' ')
             curr_fid = '%.10d' % (np.int(frame_id[:-1]))
             for cid in self.cam_ids:
-                self.static_frames.append(drive + ' ' + cid + ' ' + curr_fid)
+                static_frames.append(drive + ' ' + cid + ' ' + curr_fid)
+        return static_frames
+
+
         
     def collect_frames(self):
-        train_frames = []
-        test_frames = []
+        # collect train frames
         for date in self.date_list:
             drive_set = os.listdir(os.path.join(self.dataset_dir, date))
             for dr in drive_set:
                 drive_dir = os.path.join(self.dataset_dir, date, dr)
-                if os.path.isdir(drive_dir):
-                    new_frames = []
-                    for cam in self.cam_ids:
-                        img_dir = os.path.join(drive_dir, 'image_' + cam, 'data')
-                        N = len(glob(img_dir + '/*.png'))
-                        for n in range(N):
-                            frame_id = '%.10d' % n
-                            # dr(e.g. 2011_09_26_drive_0001_sync_02), cam(e.g. 02 or 03), frame_id(e.g. 0000000001)
-                            new_frames.append(dr + ' ' + cam + ' ' + frame_id)
-                    if dr[:-5] in self.test_scenes:
-                        test_frames.extend(new_frames)
-                    else:
-                        train_frames.extend(new_frames)
-                        
-        if self.remove_static:
-            for s in self.static_frames:
-                try:
-                    train_frames.remove(s)
-                    test_frames.remove(s)
-                except:
-                    pass
+                if dr[:-5] not in self.test_scenes and os.path.isdir(drive_dir):
+                    new_frames = self.collect_drive_frames(drive_dir, dr)
+                    self.train_frames.extend(new_frames)
 
-        self.train_frames = train_frames
         self.num_train = len(self.train_frames)
-        self.test_frames = test_frames
+        print("train frames", self.num_train, self.train_frames[0])
+        self.train_gts = self.load_depth_maps(self.train_frames)
+        # TODO: intrinsic 불러오기
+        # self.intrinsics[seq] = self.load_intrinsics('{:02d}'.format(seq), 0)
+
+        # collect test frames
+        self.test_frames = self.collect_test_frames()
+        if self.remove_static:
+            self.remove_static_frames()
         self.num_test = len(self.test_frames)
 
+
+
+    def collect_drive_frames(self, drive_dir, dr):
+        new_frames = []
+        for cam in self.cam_ids:
+            img_dir = os.path.join(drive_dir, 'image_' + cam, 'data')
+            N = len(glob(img_dir + '/*.png'))
+            for n in range(N):
+                frame_id = '%.10d' % n
+                # dr(e.g. 2011_09_26_drive_0001_sync), cam(e.g. 02), frame_id(e.g. 0000000001)
+                new_frames.append(dr + ' ' + cam + ' ' + frame_id)
+        return new_frames
+
+    @staticmethod
+    def collect_test_frames(split):
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        test_file_txt = os.path.join(dir_path, 'test_files_{}.txt'.format(split))
+        test_frames = []
+        with open(test_file_txt, 'r') as f:
+            test_file = f.readlines()
+            test_file = [t[:-1] for t in test_file]
+            for line in test_file:
+                dirs = line.split("/")
+                dr = dirs[1]
+                cam = dirs[2][6:]
+                frame_id = dirs[4][:-4]
+                test_frames.append(dr + ' ' + cam + ' ' + frame_id)
+        return test_frames
+
+    def remove_static_frames(self):
+        for s in self.static_frames:
+            try:
+                self.train_frames.remove(s)
+                self.test_frames.remove(s)
+            except:
+                pass
+
+    def load_depth_maps(self, frames):
+        depth_files = self.frames_to_files(frames)
+        gt_files, gt_calib, im_sizes, im_files, cams = read_file_data(depth_files, self.dataset_dir)
+        num_test = len(im_files)
+        gt_depths = []
+        for t_id in range(num_test):
+            camera_id = cams[t_id]  # 2 is left, 3 is right
+            depth = generate_depth_map(gt_calib[t_id], gt_files[t_id], im_sizes[t_id],
+                                       camera_id, False, True)
+            if t_id < 5:
+                print("depth shape", depth.shape)
+            gt_depths.append(depth.astype(np.float32))
+        return gt_depths
+
+    @staticmethod
+    def frames_to_files(frames):
+        files = []
+        for frame in frames:
+            drive, cam, frame_id = frame.split(' ')
+            file = "{}/{}/image_{}/data/{}.png".format(drive[:10], drive, cam, frame_id)
+            files.append(file)
+        return files
+
+
+    # ===================================================
     def get_train_example_with_idx(self, tgt_idx):
         if not self.is_valid_sample(self.train_frames, tgt_idx):
             return False
@@ -111,7 +172,7 @@ class KittiRawLoader(DataLoader):
 
     def load_example(self, frames, tgt_idx):
         image_seq, zoom_x, zoom_y = self.load_image_sequence(frames, tgt_idx, self.seq_length)
-        # dirname(e.g. 2011_09_26_drive_0001_sync_02), camera_id(e.g. 02 or 03), frame_id(e.g. 0000000001)
+        # dirname(e.g. 2011_09_26_drive_0001_sync), camera_id(e.g. 02), frame_id(e.g. 0000000001)
         tgt_drive, tgt_cid, tgt_frame_id = frames[tgt_idx].split(' ')
         intrinsics = self.load_intrinsics_raw(tgt_drive, tgt_cid, tgt_frame_id)
         intrinsics = self.scale_intrinsics(intrinsics, zoom_x, zoom_y)

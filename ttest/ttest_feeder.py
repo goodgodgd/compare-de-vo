@@ -79,6 +79,5 @@ def main(_):
     print(model_op.outputs["pred_pose"])
 
 
-
 if __name__ == '__main__':
     tf.app.run()
