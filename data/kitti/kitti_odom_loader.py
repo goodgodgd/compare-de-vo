@@ -12,6 +12,7 @@ from abstracts import DataLoader
 from data.kitti.pose_evaluation_utils import mat2euler, format_pose_seq_TUM
 from data.kitti.data_loader_utils import read_odom_calib_file, scale_intrinsics
 
+
 class KittiOdomLoader(DataLoader):
     def __init__(self,
                  dataset_dir,
