@@ -55,7 +55,7 @@ def dump_example(n, data_feeder, num_split):
     if "odom" in opt.dataset_name:
         dump_gt_file = '{}/gt/{}_gt.txt'.format(dump_dir, example['file_name'])
         np.savetxt(dump_gt_file, gt, fmt='%.6f', delimiter=',')
-    elif "eigen" in opt.dataset_name:
+    elif "eigen" in opt.dataset_name and gt is not None:
         dump_gt_file = '{}/gt/{}_gt.npy'.format(dump_dir, example['file_name'])
         np.save(dump_gt_file, gt)
 
@@ -100,12 +100,11 @@ def write_frames_two_splits(check_validity, frames, filename):
                 f.write(frame+'\n')
 
 
-def write_frames_three_splits(check_validity, frames, filename):
+def write_frames_three_splits(frames, filename):
     with open(os.path.join(opt.dump_root, filename), 'w') as f:
         for i, frame in enumerate(frames):
-            if check_validity(frames, i):
-                drive, camid, frameid = frame.split(' ')
-                f.write("{}_{} {}\n".format(drive, camid, frameid))
+            drive, camid, frameid = frame.split(' ')
+            f.write("{}_{} {}\n".format(drive, camid, frameid))
 
 
 def main():
@@ -146,15 +145,6 @@ def main():
                                         img_width=opt.img_width,
                                         seq_length=opt.seq_length)
 
-    def train_feeder(n):
-        return data_loader.get_train_example_with_idx(n)
-    # save train/val data
-    Parallel(n_jobs=opt.num_threads)(delayed(dump_example)(n, train_feeder, data_loader.num_train)
-                                     for n in range(data_loader.num_train))
-    # save train/val file list in the exactly same way with GeoNet
-    write_train_frames()
-    print("\nfinished writing train frames!!")
-
     def test_feeder(n):
         return data_loader.get_test_example_with_idx(n)
     # save test data
@@ -167,8 +157,18 @@ def main():
     if opt.dataset_name == 'kitti_odom':
         write_frames_two_splits(is_valid_sample, data_loader.test_frames, "test.txt")
     if opt.dataset_name == 'kitti_raw_eigen':
-        write_frames_three_splits(is_valid_sample, data_loader.test_frames, "test.txt")
+        write_frames_three_splits(data_loader.test_frames, "test.txt")
     print("\nfinished writing test frames!!")
+
+    #
+    def train_feeder(n):
+        return data_loader.get_train_example_with_idx(n)
+    # save train/val data
+    Parallel(n_jobs=opt.num_threads)(delayed(dump_example)(n, train_feeder, data_loader.num_train)
+                                     for n in range(data_loader.num_train))
+    # save train/val file list in the exactly same way with GeoNet
+    write_train_frames()
+    print("\nfinished writing train frames!!")
 
 
 if __name__ == '__main__':

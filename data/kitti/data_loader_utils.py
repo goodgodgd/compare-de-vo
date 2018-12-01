@@ -4,7 +4,7 @@ import numpy as np
 import cv2
 
 
-def load_intrinsics_raw(dataset_dir, date, cam_id):
+def read_intrinsics_raw(dataset_dir, date, cam_id):
     calib_file = os.path.join(dataset_dir, date, 'calib_cam_to_cam.txt')
     filedata = read_raw_calib_file(calib_file)
     P_rect = np.reshape(filedata['P_rect_' + cam_id], (3, 4))
@@ -45,4 +45,30 @@ def read_file_data(data_root, filename):
     else:
         num_probs += 1
         print('{} missing'.format(img_file))
-        return [], [], [], [], []
+        return [], [], [], []
+
+
+def read_odom_calib_file(filepath, cid=2):
+    """Read in a calibration file and parse into a dictionary."""
+    with open(filepath, 'r') as f:
+        calib = f.readlines()
+
+    def parse_line(L, shape):
+        data = L.split()
+        data = np.array(data[1:]).reshape(shape).astype(np.float32)
+        return data
+
+    proj_c2p = parse_line(calib[cid], shape=(3, 4))
+    proj_v2c = parse_line(calib[-1], shape=(3, 4))
+    filler = np.array([0, 0, 0, 1]).reshape((1, 4))
+    proj_v2c = np.concatenate((proj_v2c, filler), axis=0)
+    return proj_c2p, proj_v2c
+
+
+def scale_intrinsics(mat, sx, sy):
+    out = np.copy(mat)
+    out[0, 0] *= sx
+    out[0, 2] *= sx
+    out[1, 1] *= sy
+    out[1, 2] *= sy
+    return out

@@ -10,7 +10,7 @@ module_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__
 if module_path not in sys.path: sys.path.append(module_path)
 from abstracts import DataLoader
 from data.kitti.pose_evaluation_utils import mat2euler, format_pose_seq_TUM
-
+from data.kitti.data_loader_utils import read_odom_calib_file, scale_intrinsics
 
 class KittiOdomLoader(DataLoader):
     def __init__(self,
@@ -124,7 +124,7 @@ class KittiOdomLoader(DataLoader):
         tgt_drive, tgt_frame_id = frames[tgt_idx].split(' ')
         example = dict()
         example['image_seq'] = image_seq
-        example['intrinsics'] = self.scale_intrinsics(self.intrinsics[int(tgt_drive)], zoom_x, zoom_y)
+        example['intrinsics'] = scale_intrinsics(self.intrinsics[int(tgt_drive)], zoom_x, zoom_y)
         example['gt'] = gtruths[tgt_idx]
         example['folder_name'] = tgt_drive
         example['file_name'] = tgt_frame_id
@@ -150,32 +150,6 @@ class KittiOdomLoader(DataLoader):
 
     def load_intrinsics(self, drive):
         calib_file = os.path.join(self.dataset_dir, 'sequences', '%s/calib.txt' % drive)
-        proj_c2p, _ = self.read_calib_file(calib_file)
+        proj_c2p, _ = read_odom_calib_file(calib_file)
         intrinsics = proj_c2p[:3, :3]
         return intrinsics
-    
-    @staticmethod
-    def read_calib_file(filepath, cid=2):
-        """Read in a calibration file and parse into a dictionary."""
-        with open(filepath, 'r') as f:
-            calib = f.readlines()
-        
-        def parse_line(L, shape):
-            data = L.split()
-            data = np.array(data[1:]).reshape(shape).astype(np.float32)
-            return data
-
-        proj_c2p = parse_line(calib[cid], shape=(3,4))
-        proj_v2c = parse_line(calib[-1], shape=(3,4))
-        filler = np.array([0, 0, 0, 1]).reshape((1,4))
-        proj_v2c = np.concatenate((proj_v2c, filler), axis=0)
-        return proj_c2p, proj_v2c
-
-    @staticmethod
-    def scale_intrinsics(mat, sx, sy):
-        out = np.copy(mat)
-        out[0,0] *= sx
-        out[0,2] *= sx
-        out[1,1] *= sy
-        out[1,2] *= sy
-        return out

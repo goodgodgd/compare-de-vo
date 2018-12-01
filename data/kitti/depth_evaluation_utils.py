@@ -168,7 +168,7 @@ def sub2ind(matrixSize, rowSub, colSub):
     return rowSub * (n-1) + colSub - 1
 
 
-def generate_depth_map(calib_dir, velo_file_name, im_shape, cam=2, interp=False, vel_depth=False):
+def generate_depth_map(calib_dir, velo_file_name, im_shape, cam: str, interp=False, vel_depth=False):
     # load calibration files
     cam2cam = read_calib_file(os.path.join(calib_dir, 'calib_cam_to_cam.txt'))
     velo2cam = read_calib_file(os.path.join(calib_dir, 'calib_velo_to_cam.txt'))
@@ -177,8 +177,8 @@ def generate_depth_map(calib_dir, velo_file_name, im_shape, cam=2, interp=False,
 
     # compute projection matrix velodyne->image plane
     R_cam2rect = np.eye(4)
-    R_cam2rect[:3,:3] = cam2cam['R_rect_00'].reshape(3,3)
-    P_rect = cam2cam['P_rect_0'+str(cam)].reshape(3,4)
+    R_cam2rect[:3, :3] = cam2cam['R_rect_00'].reshape(3, 3)
+    P_rect = cam2cam['P_rect_'+cam].reshape(3, 4)
     P_velo2im = np.dot(np.dot(P_rect, R_cam2rect), velo2cam)
 
     # load velodyne points and remove all behind image plane (approximation)

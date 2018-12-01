@@ -9,8 +9,9 @@ import scipy.misc
 module_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if module_path not in sys.path: sys.path.append(module_path)
 from abstracts import DataLoader
-from data.kitti.depth_evaluation_utils import generate_depth_map, read_file_data
-from data.kitti.data_loader_utils import load_intrinsics_raw
+from data.kitti.depth_evaluation_utils import generate_depth_map
+from data.kitti.data_loader_utils import read_intrinsics_raw, read_file_data, scale_intrinsics
+
 
 class KittiRawLoader(DataLoader):
     def __init__(self, 
@@ -65,15 +66,12 @@ class KittiRawLoader(DataLoader):
     # collect all frame info
     def collect_frames(self):
         self.train_frames = self.collect_train_frames()
-        self.train_frames = self.train_frames[:100]
+        # self.train_frames = self.train_frames[:100]
         self.test_frames = self.collect_test_frames(self.split)
         if self.remove_static:
             self.remove_static_frames()
 
-        self.train_gts = self.load_depth_maps(self.train_frames)
-        self.test_gts = self.load_depth_maps(self.test_frames)
         self.intrinsics = self.load_intrinsics()
-
         self.num_train = len(self.train_frames)
         self.num_test = len(self.test_frames)
 
@@ -121,39 +119,13 @@ class KittiRawLoader(DataLoader):
             except:
                 pass
 
-    def load_depth_map(self, frame):
-        drive, cam_id, frame_id = frame.split(' ')
-        depth_file = "{}/{}/image_{}/data/{}.png".format(drive[:10], drive, cam_id, frame_id)
-        # camera_id: 2 is left, 3 is right
-        gt_file, gt_calib, im_size, camera_id = read_file_data(depth_file, self.dataset_dir)
-        depth = generate_depth_map(gt_calib, gt_file, im_size, camera_id, False, True)
-        return depth
-
-    def load_depth_maps(self, frames):
-        depth_files = self.frames_to_files(frames)
-        gt_files, gt_calib, im_sizes, im_files, cams = read_file_data(depth_files, self.dataset_dir)
-        gt_depths = []
-        for t_id in range(len(im_files)):
-            camera_id = cams[t_id]  # 2 is left, 3 is right
-            depth = generate_depth_map(gt_calib[t_id], gt_files[t_id], im_sizes[t_id],
-                                       camera_id, False, True)
-            gt_depths.append(depth.astype(np.float32))
-        return gt_depths
-
-    @staticmethod
-    def frames_to_files(frames):
-        files = []
-        for frame in frames:
-            files.append(file)
-        return files
-
     def load_intrinsics(self):
         intrinsics = dict()
         cam_ids = ['02', '03']
         for date in self.date_list:
             intrinsics[date] = dict()
             for cid in cam_ids:
-                intrinsics[date][cid] = load_intrinsics_raw(self.dataset_dir, date, cid)
+                intrinsics[date][cid] = read_intrinsics_raw(self.dataset_dir, date, cid)
         return intrinsics
 
     # ========================================
@@ -162,13 +134,11 @@ class KittiRawLoader(DataLoader):
     def get_train_example_with_idx(self, tgt_idx):
         if not self.is_valid_sample(self.train_frames, tgt_idx):
             return False
-        example = self.load_example(self.train_frames, self.train_gts, tgt_idx)
+        example = self.load_example(self.train_frames, tgt_idx, False)
         return example
 
     def get_test_example_with_idx(self, tgt_idx):
-        if not self.is_valid_sample(self.test_frames, tgt_idx):
-            return False
-        example = self.load_example(self.test_frames, self.test_gts, tgt_idx)
+        example = self.load_example(self.test_frames, tgt_idx, True)
         return example
 
     def is_valid_sample(self, frames, tgt_idx):
@@ -185,16 +155,18 @@ class KittiRawLoader(DataLoader):
             return True
         return False
 
-    def load_example(self, frames, gtruths, tgt_idx):
-        image_seq, zoom_x, zoom_y = self.load_image_sequence(frames, tgt_idx, self.seq_length)
+    def load_example(self, frames, tgt_idx, is_test: bool):
+        image_seq, zoom_x, zoom_y = self.load_target_image_padded(frames, tgt_idx, self.seq_length) \
+            if is_test else self.load_image_sequence(frames, tgt_idx, self.seq_length)
         # dirname(e.g. 2011_09_26_drive_0001_sync), camera_id(e.g. 02), frame_id(e.g. 0000000001)
         tgt_drive, tgt_cid, tgt_frame_id = frames[tgt_idx].split(' ')
         date = tgt_drive[:10]
-        intrinsics = self.scale_intrinsics(self.intrinsics[date][tgt_cid], zoom_x, zoom_y)
+        intrinsics = scale_intrinsics(self.intrinsics[date][tgt_cid], zoom_x, zoom_y)
+        gt_depth = self.load_depth_map(frames[tgt_idx]) if is_test else None
         example = dict()
         example['image_seq'] = image_seq
         example['intrinsics'] = intrinsics
-        example['gt'] = gtruths[tgt_idx]
+        example['gt'] = gt_depth
         example['folder_name'] = tgt_drive + '_' + tgt_cid
         example['file_name'] = tgt_frame_id
         return example
@@ -213,19 +185,29 @@ class KittiRawLoader(DataLoader):
             image_seq.append(curr_img)
         return image_seq, zoom_x, zoom_y
 
+    # when testing, only target image is used. so leave left and right images blank
+    def load_target_image_padded(self, frames, tgt_idx, seq_length):
+        tgt_drive, tgt_cid, tgt_frame_id = frames[tgt_idx].split(' ')
+        tgt_img = self.load_image_raw(tgt_drive, tgt_cid, tgt_frame_id)
+        zoom_y = self.img_height/tgt_img.shape[0]
+        zoom_x = self.img_width/tgt_img.shape[1]
+        image_rsz = scipy.misc.imresize(tgt_img, (self.img_height, self.img_width))
+
+        image_out = np.zeros([self.img_height, self.img_width*seq_length, 3], dtype=np.float32)
+        half_offset = int((seq_length - 1)/2)
+        image_out[:, self.img_width*half_offset:self.img_width*(half_offset+1)] = image_rsz
+        return image_out, zoom_x, zoom_y
+
     def load_image_raw(self, drive, cid, frame_id):
         date = drive[:10]
         img_file = os.path.join(self.dataset_dir, date, drive, 'image_' + cid, 'data', frame_id + '.png')
         img = scipy.misc.imread(img_file)
         return img
 
-    @staticmethod
-    def scale_intrinsics(mat, sx, sy):
-        out = np.copy(mat)
-        out[0,0] *= sx
-        out[0,2] *= sx
-        out[1,1] *= sy
-        out[1,2] *= sy
-        return out
-
-
+    def load_depth_map(self, frame):
+        drive, cam_id, frame_id = frame.split(' ')
+        depth_file = "{}/{}/image_{}/data/{}.png".format(drive[:10], drive, cam_id, frame_id)
+        # camera_id: 2 is left, 3 is right
+        gt_file, gt_calib, im_size, camera_id = read_file_data(self.dataset_dir, depth_file)
+        depth = generate_depth_map(gt_calib, gt_file, im_size, camera_id, False, True)
+        return depth
