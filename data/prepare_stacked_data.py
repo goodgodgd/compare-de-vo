@@ -51,12 +51,18 @@ def dump_example(n, data_feeder, num_split):
 
     dump_img_file = '{}/{}.jpg'.format(dump_dir, example['file_name'])
     scipy.misc.imsave(dump_img_file, image_seq.astype(np.uint8))
-    dump_gt_file = '{}/gt/{}_gt.txt'.format(dump_dir, example['file_name'])
-    np.savetxt(dump_gt_file, gt, fmt='%.5f', delimiter=',')
+
+    if "odom" in opt.dataset_name:
+        dump_gt_file = '{}/gt/{}_gt.txt'.format(dump_dir, example['file_name'])
+        np.savetxt(dump_gt_file, gt, fmt='%.6f', delimiter=',')
+    elif "eigen" in opt.dataset_name:
+        dump_gt_file = '{}/gt/{}_gt.npy'.format(dump_dir, example['file_name'])
+        np.save(dump_gt_file, gt)
+
     # save intrinsic only once
     if int(example['file_name']) == 5:
         dump_cam_file = '{}/intrinsics.txt'.format(dump_dir)
-        np.savetxt(dump_cam_file, intrinsics, fmt='%.5f', delimiter=',')
+        np.savetxt(dump_cam_file, intrinsics, fmt='%.6f', delimiter=',')
 
 
 def print_progress(count, total):
@@ -140,8 +146,6 @@ def main():
                                         img_width=opt.img_width,
                                         seq_length=opt.seq_length)
 
-    return
-
     def train_feeder(n):
         return data_loader.get_train_example_with_idx(n)
     # save train/val data
@@ -149,6 +153,7 @@ def main():
                                      for n in range(data_loader.num_train))
     # save train/val file list in the exactly same way with GeoNet
     write_train_frames()
+    print("\nfinished writing train frames!!")
 
     def test_feeder(n):
         return data_loader.get_test_example_with_idx(n)
@@ -163,6 +168,7 @@ def main():
         write_frames_two_splits(is_valid_sample, data_loader.test_frames, "test.txt")
     if opt.dataset_name == 'kitti_raw_eigen':
         write_frames_three_splits(is_valid_sample, data_loader.test_frames, "test.txt")
+    print("\nfinished writing test frames!!")
 
 
 if __name__ == '__main__':

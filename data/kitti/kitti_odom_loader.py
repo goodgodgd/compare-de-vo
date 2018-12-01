@@ -35,7 +35,7 @@ class KittiOdomLoader(DataLoader):
             self.train_frames.extend(frames)
             gts = self.generate_pose_snippets(self.dataset_dir, seq, self.seq_length)
             self.train_gts.extend(gts)
-            self.intrinsics[seq] = self.load_intrinsics('{:02d}'.format(seq), 0)
+            self.intrinsics[seq] = self.load_intrinsics('{:02d}'.format(seq))
         self.num_train = len(self.train_frames)
         assert self.num_train == len(self.train_gts), \
             "num train: {} {}".format(self.num_train, len(self.train_gts))
@@ -45,7 +45,7 @@ class KittiOdomLoader(DataLoader):
             self.test_frames.extend(frames)
             gts = self.generate_pose_snippets(self.dataset_dir, seq, self.seq_length)
             self.test_gts.extend(gts)
-            self.intrinsics[seq] = self.load_intrinsics('{:02d}'.format(seq), 0)
+            self.intrinsics[seq] = self.load_intrinsics('{:02d}'.format(seq))
         self.num_test = len(self.test_frames)
         assert self.num_test == len(self.test_gts), \
             "num train: {} {}".format(self.num_test, len(self.test_gts))
@@ -97,13 +97,13 @@ class KittiOdomLoader(DataLoader):
     def get_train_example_with_idx(self, tgt_idx):
         if not self.is_valid_sample(self.train_frames, tgt_idx):
             return False
-        example = self.load_example(self.train_frames, tgt_idx)
+        example = self.load_example(self.train_frames, self.train_gts, tgt_idx)
         return example
 
     def get_test_example_with_idx(self, tgt_idx):
         if not self.is_valid_sample(self.test_frames, tgt_idx):
             return False
-        example = self.load_example(self.test_frames, tgt_idx)
+        example = self.load_example(self.test_frames, self.test_gts, tgt_idx)
         return example
 
     def is_valid_sample(self, frames, tgt_idx):
@@ -119,13 +119,13 @@ class KittiOdomLoader(DataLoader):
             return True
         return False
 
-    def load_example(self, frames, tgt_idx):
+    def load_example(self, frames, gtruths, tgt_idx):
         image_seq, zoom_x, zoom_y = self.load_image_sequence(frames, tgt_idx)
         tgt_drive, tgt_frame_id = frames[tgt_idx].split(' ')
         example = dict()
         example['image_seq'] = image_seq
         example['intrinsics'] = self.scale_intrinsics(self.intrinsics[int(tgt_drive)], zoom_x, zoom_y)
-        example['gt'] = self.train_gts[tgt_idx]
+        example['gt'] = gtruths[tgt_idx]
         example['folder_name'] = tgt_drive
         example['file_name'] = tgt_frame_id
         return example
@@ -148,7 +148,7 @@ class KittiOdomLoader(DataLoader):
         img = scipy.misc.imread(img_file)
         return img
 
-    def load_intrinsics(self, drive, frame_id):
+    def load_intrinsics(self, drive):
         calib_file = os.path.join(self.dataset_dir, 'sequences', '%s/calib.txt' % drive)
         proj_c2p, _ = self.read_calib_file(calib_file)
         intrinsics = proj_c2p[:3, :3]

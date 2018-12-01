@@ -9,8 +9,8 @@ import scipy.misc
 module_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if module_path not in sys.path: sys.path.append(module_path)
 from abstracts import DataLoader
-from data.kitti.depth_evaluation_utils import read_file_data, generate_depth_map
-
+from data.kitti.depth_evaluation_utils import generate_depth_map, read_file_data
+from data.kitti.data_loader_utils import load_intrinsics_raw
 
 class KittiRawLoader(DataLoader):
     def __init__(self, 
@@ -26,6 +26,7 @@ class KittiRawLoader(DataLoader):
         self.img_width = img_width
         self.seq_length = seq_length
         self.remove_static = remove_static
+        self.split = split
         self.cam_ids = ['02', '03']
         self.date_list = ['2011_09_26', '2011_09_28', '2011_09_29', '2011_09_30', '2011_10_03']
         self.test_scenes = self.read_test_scenes(split)
@@ -34,6 +35,8 @@ class KittiRawLoader(DataLoader):
 
         self.collect_frames()
 
+    # ========================================
+    # prepare to collect frames
     @staticmethod
     def read_test_scenes(split):
         dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -58,31 +61,33 @@ class KittiRawLoader(DataLoader):
                 static_frames.append(drive + ' ' + cid + ' ' + curr_fid)
         return static_frames
 
-
-        
+    # ========================================
+    # collect all frame info
     def collect_frames(self):
-        # collect train frames
+        self.train_frames = self.collect_train_frames()
+        self.train_frames = self.train_frames[:100]
+        self.test_frames = self.collect_test_frames(self.split)
+        if self.remove_static:
+            self.remove_static_frames()
+
+        self.train_gts = self.load_depth_maps(self.train_frames)
+        self.test_gts = self.load_depth_maps(self.test_frames)
+        self.intrinsics = self.load_intrinsics()
+
+        self.num_train = len(self.train_frames)
+        self.num_test = len(self.test_frames)
+
+    def collect_train_frames(self):
+        train_frames = []
         for date in self.date_list:
             drive_set = os.listdir(os.path.join(self.dataset_dir, date))
             for dr in drive_set:
                 drive_dir = os.path.join(self.dataset_dir, date, dr)
                 if dr[:-5] not in self.test_scenes and os.path.isdir(drive_dir):
                     new_frames = self.collect_drive_frames(drive_dir, dr)
-                    self.train_frames.extend(new_frames)
-
-        self.num_train = len(self.train_frames)
-        print("train frames", self.num_train, self.train_frames[0])
-        self.train_gts = self.load_depth_maps(self.train_frames)
-        # TODO: intrinsic 불러오기
-        # self.intrinsics[seq] = self.load_intrinsics('{:02d}'.format(seq), 0)
-
-        # collect test frames
-        self.test_frames = self.collect_test_frames()
-        if self.remove_static:
-            self.remove_static_frames()
-        self.num_test = len(self.test_frames)
-
-
+                    train_frames.extend(new_frames)
+        print("train frames were collected:", len(train_frames), train_frames[0])
+        return train_frames
 
     def collect_drive_frames(self, drive_dir, dr):
         new_frames = []
@@ -104,32 +109,34 @@ class KittiRawLoader(DataLoader):
             test_file = f.readlines()
             test_file = [t[:-1] for t in test_file]
             for line in test_file:
-                dirs = line.split("/")
-                dr = dirs[1]
-                cam = dirs[2][6:]
-                frame_id = dirs[4][:-4]
-                test_frames.append(dr + ' ' + cam + ' ' + frame_id)
+                date, drive, cam, _, frame_id = line.split("/")
+                test_frames.append(drive + ' ' + cam[-2:] + ' ' + frame_id[:-4])
+        print("test frames were collected:", len(test_frames), test_frames[0])
         return test_frames
 
     def remove_static_frames(self):
         for s in self.static_frames:
             try:
                 self.train_frames.remove(s)
-                self.test_frames.remove(s)
             except:
                 pass
+
+    def load_depth_map(self, frame):
+        drive, cam_id, frame_id = frame.split(' ')
+        depth_file = "{}/{}/image_{}/data/{}.png".format(drive[:10], drive, cam_id, frame_id)
+        # camera_id: 2 is left, 3 is right
+        gt_file, gt_calib, im_size, camera_id = read_file_data(depth_file, self.dataset_dir)
+        depth = generate_depth_map(gt_calib, gt_file, im_size, camera_id, False, True)
+        return depth
 
     def load_depth_maps(self, frames):
         depth_files = self.frames_to_files(frames)
         gt_files, gt_calib, im_sizes, im_files, cams = read_file_data(depth_files, self.dataset_dir)
-        num_test = len(im_files)
         gt_depths = []
-        for t_id in range(num_test):
+        for t_id in range(len(im_files)):
             camera_id = cams[t_id]  # 2 is left, 3 is right
             depth = generate_depth_map(gt_calib[t_id], gt_files[t_id], im_sizes[t_id],
                                        camera_id, False, True)
-            if t_id < 5:
-                print("depth shape", depth.shape)
             gt_depths.append(depth.astype(np.float32))
         return gt_depths
 
@@ -137,23 +144,31 @@ class KittiRawLoader(DataLoader):
     def frames_to_files(frames):
         files = []
         for frame in frames:
-            drive, cam, frame_id = frame.split(' ')
-            file = "{}/{}/image_{}/data/{}.png".format(drive[:10], drive, cam, frame_id)
             files.append(file)
         return files
 
+    def load_intrinsics(self):
+        intrinsics = dict()
+        cam_ids = ['02', '03']
+        for date in self.date_list:
+            intrinsics[date] = dict()
+            for cid in cam_ids:
+                intrinsics[date][cid] = load_intrinsics_raw(self.dataset_dir, date, cid)
+        return intrinsics
 
-    # ===================================================
+    # ========================================
+    # after initialized, it feeds example one by one
+
     def get_train_example_with_idx(self, tgt_idx):
         if not self.is_valid_sample(self.train_frames, tgt_idx):
             return False
-        example = self.load_example(self.train_frames, tgt_idx)
+        example = self.load_example(self.train_frames, self.train_gts, tgt_idx)
         return example
 
     def get_test_example_with_idx(self, tgt_idx):
         if not self.is_valid_sample(self.test_frames, tgt_idx):
             return False
-        example = self.load_example(self.test_frames, tgt_idx)
+        example = self.load_example(self.test_frames, self.test_gts, tgt_idx)
         return example
 
     def is_valid_sample(self, frames, tgt_idx):
@@ -170,15 +185,16 @@ class KittiRawLoader(DataLoader):
             return True
         return False
 
-    def load_example(self, frames, tgt_idx):
+    def load_example(self, frames, gtruths, tgt_idx):
         image_seq, zoom_x, zoom_y = self.load_image_sequence(frames, tgt_idx, self.seq_length)
         # dirname(e.g. 2011_09_26_drive_0001_sync), camera_id(e.g. 02), frame_id(e.g. 0000000001)
         tgt_drive, tgt_cid, tgt_frame_id = frames[tgt_idx].split(' ')
-        intrinsics = self.load_intrinsics_raw(tgt_drive, tgt_cid, tgt_frame_id)
-        intrinsics = self.scale_intrinsics(intrinsics, zoom_x, zoom_y)
-        example = {}
-        example['intrinsics'] = intrinsics
+        date = tgt_drive[:10]
+        intrinsics = self.scale_intrinsics(self.intrinsics[date][tgt_cid], zoom_x, zoom_y)
+        example = dict()
         example['image_seq'] = image_seq
+        example['intrinsics'] = intrinsics
+        example['gt'] = gtruths[tgt_idx]
         example['folder_name'] = tgt_drive + '_' + tgt_cid
         example['file_name'] = tgt_frame_id
         return example
@@ -203,32 +219,8 @@ class KittiRawLoader(DataLoader):
         img = scipy.misc.imread(img_file)
         return img
 
-    def load_intrinsics_raw(self, drive, cid, frame_id):
-        date = drive[:10]
-        calib_file = os.path.join(self.dataset_dir, date, 'calib_cam_to_cam.txt')
-
-        filedata = self.read_raw_calib_file(calib_file)
-        P_rect = np.reshape(filedata['P_rect_' + cid], (3, 4))
-        intrinsics = P_rect[:3, :3]
-        return intrinsics
-
-    def read_raw_calib_file(self,filepath):
-        # From https://github.com/utiasSTARS/pykitti/blob/master/pykitti/utils.py
-        """Read in a calibration file and parse into a dictionary."""
-        data = {}
-
-        with open(filepath, 'r') as f:
-            for line in f.readlines():
-                key, value = line.split(':', 1)
-                # The only non-float values in these files are dates, which
-                # we don't care about anyway
-                try:
-                        data[key] = np.array([float(x) for x in value.split()])
-                except ValueError:
-                        pass
-        return data
-
-    def scale_intrinsics(self, mat, sx, sy):
+    @staticmethod
+    def scale_intrinsics(mat, sx, sy):
         out = np.copy(mat)
         out[0,0] *= sx
         out[0,2] *= sx

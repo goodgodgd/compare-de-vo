@@ -77,10 +77,6 @@ def read_text_lines(file_path):
 
 
 def read_file_data(files, data_root):
-    # static variable in function
-    f = read_file_data
-    f.im_size = getattr(f, 'im_size', [0, 0])
-
     gt_files = []
     gt_calib = []
     im_sizes = []
@@ -99,18 +95,7 @@ def read_file_data(files, data_root):
         if os.path.isfile(imfile):
             gt_files.append(os.path.join(data_root, vel))
             gt_calib.append(os.path.join(data_root, date))
-
-            # im_sizes.append(cv2.imread(imfile).shape[:2])
-            # instead of opening all files just to read image size (like above line),
-            # read once, keep it in static var, and occasionally check it
-            if f.im_size[0] == 0:
-                f.im_size = cv2.imread(imfile).shape[:2]
-            if f.im_size[0] > 0 and i % 100 == 0:
-                neo_size = cv2.imread(imfile).shape[:2]
-                assert f.im_size == neo_size, "size changed? {} != {}, {}, {}"\
-                    .format(f.im_size, neo_size, im_files[0], imfile)
-            im_sizes.append(f.im_size)
-
+            im_sizes.append(cv2.imread(imfile).shape[:2])
             im_files.append(imfile)
             cams.append(2)
         else:
@@ -147,19 +132,20 @@ def read_calib_file(path):
             key, value = line.split(':', 1)
             value = value.strip()
             data[key] = value
+            # if value is array of numbers, not date time, convert to numpy array
             if float_chars.issuperset(value):
                 # try to cast to float array
                 try:
-                    data[key] = np.array(map(float, value.split(' ')))
+                    # change: np.array(map(f, v)) -> np.array(list(map(f, v)))
+                    data[key] = np.array(list(map(float, value.split(' '))))
                 except ValueError:
                     # casting error: data[key] already eq. value, so pass
                     pass
-
     return data
 
 
 def get_focal_length_baseline(calib_dir, cam=2):
-    cam2cam = read_calib_file(calib_dir + 'calib_cam_to_cam.txt')
+    cam2cam = read_calib_file(os.path.join(calib_dir + 'calib_cam_to_cam.txt'))
     P2_rect = cam2cam['P_rect_02'].reshape(3,4)
     P3_rect = cam2cam['P_rect_03'].reshape(3,4)
 
@@ -169,10 +155,10 @@ def get_focal_length_baseline(calib_dir, cam=2):
     b3 = P3_rect[0,3] / -P3_rect[0,0]
     baseline = b3-b2
 
-    if cam==2:
-        focal_length = P2_rect[0,0]
-    elif cam==3:
-        focal_length = P3_rect[0,0]
+    if cam == 2:
+        focal_length = P2_rect[0, 0]
+    elif cam == 3:
+        focal_length = P3_rect[0, 0]
 
     return focal_length, baseline
 
@@ -184,8 +170,8 @@ def sub2ind(matrixSize, rowSub, colSub):
 
 def generate_depth_map(calib_dir, velo_file_name, im_shape, cam=2, interp=False, vel_depth=False):
     # load calibration files
-    cam2cam = read_calib_file(calib_dir + 'calib_cam_to_cam.txt')
-    velo2cam = read_calib_file(calib_dir + 'calib_velo_to_cam.txt')
+    cam2cam = read_calib_file(os.path.join(calib_dir, 'calib_cam_to_cam.txt'))
+    velo2cam = read_calib_file(os.path.join(calib_dir, 'calib_velo_to_cam.txt'))
     velo2cam = np.hstack((velo2cam['R'].reshape(3,3), velo2cam['T'][..., np.newaxis]))
     velo2cam = np.vstack((velo2cam, np.array([0, 0, 0, 1.0])))
 
@@ -221,7 +207,7 @@ def generate_depth_map(calib_dir, velo_file_name, im_shape, cam=2, interp=False,
 
     # find the duplicate points and choose the closest depth
     inds = sub2ind(depth.shape, velo_pts_im[:, 1], velo_pts_im[:, 0])
-    dupe_inds = [item for item, count in Counter(inds).iteritems() if count > 1]
+    dupe_inds = [item for item, count in Counter(inds).items() if count > 1]
     for dd in dupe_inds:
         pts = np.where(inds==dd)[0]
         x_loc = int(velo_pts_im[pts[0], 0])
