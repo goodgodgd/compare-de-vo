@@ -1,6 +1,9 @@
+import os
 import sys
 import tensorflow as tf
-sys.path.append('..')
+
+module_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if module_path not in sys.path: sys.path.append(module_path)
 from models.geonet.geonet_feeder import dataset_feeder
 from models.geonet.geonet_model import GeoNetModel
 from model_operator import GeoNetOperator
@@ -56,27 +59,31 @@ def main(_):
     opt.mode = "test_pose"
 
     if opt.mode == "test_pose":
-        opt.dataset_dir = "/media/ian/iandata/geonet_data/kitti_raw_eigen"
-        opt.tfrecords_dir = "/media/ian/iandata/geonet_data/tfrecords/kitti_odom"
-        opt.checkpoint_dir = "../"
+        opt.dataset_dir = "/home/ian/workplace/CompareDevo/geonet_data/kitti_odom"
+        opt.tfrecords_dir = "/home/ian/workplace/CompareDevo/geonet_data/tfrecords/kitti_odom"
+        opt.checkpoint_dir = "/home/ian/workplace/CompareDevo/ckpts/geonet_posenet"
         opt.seq_length = 5
         opt.batch_size = 4
         opt.num_source = 4
 
-    dataset = dataset_feeder(opt, "test")
+    dataset = dataset_feeder(opt, "test", opt.seq_length)
     geonet = GeoNetModel(opt)
     model_op = GeoNetOperator(opt, geonet)
 
     for i, features in enumerate(dataset):
         src_image_stack = features["sources"]
         tgt_image = features["target"]
+        gtruth = features["gt"]
         intrinsics_ms = features["intrinsics_ms"]
-        print("shapes", src_image_stack.shape, tgt_image.shape, intrinsics_ms.shape)
-        model_op._cnn_model_fn(features, tf.estimator.ModeKeys.PREDICT)
+        # seq_length = features["seq_len"]
+
+        print("=========== features\n srcimg:", src_image_stack.shape)
+        print("tgtimg:", tgt_image.shape)
+        print("intrin:", intrinsics_ms.shape)
+        print("gtruth:", gtruth.shape)
+        # print("seqlen:", seq_length)
         if i > 3:
             break
-
-    print(model_op.outputs["pred_pose"])
 
 
 if __name__ == '__main__':
