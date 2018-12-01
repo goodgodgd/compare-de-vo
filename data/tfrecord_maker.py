@@ -97,7 +97,6 @@ class KittiTfrdMaker(TfrecordsMaker):
             ImageFeeder("image", image_list, dtype=np.uint8),
             gt_feeder,
             TextFeeder("intrinsic", cam_list, dtype=np.float32, shape_out=False),
-            IntegerFeeder("seq_len", self.opt.seq_length, N)
         ]
         return data_feeders
 

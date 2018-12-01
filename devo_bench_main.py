@@ -1,14 +1,15 @@
 # TODO: code reference
 import os
 import random
-import pprint
 import numpy as np
 import tensorflow as tf
+import scipy.io as sio
 
-from models.geonet.geonet_model import *
-from geonet_test_depth import *
-from geonet_test_pose import *
+from models.geonet.geonet_model import GeoNetModel
+from models.geonet.geonet_feeder import dataset_feeder
 from model_operator import GeoNetOperator
+from constants import InputShape
+from data.kitti.pose_evaluation_utils import format_pose_seq_TUM
 
 
 flags = tf.app.flags
@@ -49,7 +50,7 @@ flags.DEFINE_float("flow_consistency_beta",       0.05,    "Beta for flow consis
 # #### Testing Configurations #####
 flags.DEFINE_string("output_dir",                 None,    "Test result output directory")
 flags.DEFINE_string("depth_test_split",        "eigen",    "KITTI depth split, eigen or stereo")
-flags.DEFINE_integer("pose_test_seq",                9,    "KITTI Odometry Sequence ID to test")
+# flags.DEFINE_integer("pose_test_seq",                9,    "KITTI Odometry Sequence ID to test")
 
 
 # #### Additional Configurations #####
@@ -66,7 +67,6 @@ def train():
     set_random_seed()
     if not os.path.exists(opt.checkpoint_dir):
         os.makedirs(opt.checkpoint_dir)
-
     geonet = GeoNetModel(opt)
     model_op = GeoNetOperator(opt, geonet)
     model_op.train()
@@ -80,17 +80,52 @@ def set_random_seed():
 
 
 def test_pose():
+    # tf.enable_eager_execution()
     geonet = GeoNetModel(opt)
-    model_op = GeoNetOperator(opt, geonet)
-    # for features in dataset:
-    #     model_op.predict()
+    input_uint8 = tf.placeholder(tf.uint8, [opt.batch_size, InputShape.HEIGHT, InputShape.WIDTH,
+                                            opt.seq_length * 3], name='raw_input')
+    tgt_image = input_uint8[:, :, :, :3]
+    src_image_stack = input_uint8[:, :, :, 3:]
+    geonet.build_model(tgt_image, src_image_stack, None)
+    fetches = {"pose": geonet.pred_poses}
+    saver = tf.train.Saver([var for var in tf.model_variables()])
+    dataset_iter = dataset_feeder(opt, "test", opt.seq_length)
+
+    gt_poses = []
+    pred_poses = []
+    target_ind = (opt.seq_length - 1)//2
+
+    with tf.Session() as sess:
+        saver.restore(sess, opt.init_ckpt_file)
+        for i in range(1000000):
+            try:
+                inputs = sess.run(dataset_iter)
+                pred = sess.run(fetches, feed_dict={tgt_image: inputs["target"],
+                                                    src_image_stack: inputs["sources"]})
+                gt_poses.append(inputs["gt"])
+                pred_pose_batch = pred["pose"]
+                pred_pose_batch = np.insert(pred_pose_batch, target_ind, np.zeros((1, 6)), axis=1)
+                for b in range(opt.batch_size):
+                    # insert the target pose [0, 0, 0, 0, 0, 0] into the middle 
+                    pred_pose_tum = format_pose_seq_TUM(pred_pose_batch[b, :, :])
+                    pred_poses.append(pred_pose_tum)
+            except tf.errors.OutOfRangeError:
+                break
+
+    gt_poses = np.concatenate(gt_poses, axis=0)
+    pred_poses = np.stack(pred_poses, axis=0)
+    print("poses shape (gt, pred)", gt_poses.shape, pred_poses.shape)
+    filename = os.path.join(opt.output_dir, "gt_pose_seq_{}".format(opt.seq_length))
+    np.save(filename, gt_poses)
+    filename = os.path.join(opt.output_dir, "pred_pose_seq_{}".format(opt.seq_length))
+    np.save(filename, pred_poses)
+    filename = os.path.join(opt.output_dir, "pose_seq_{}".format(opt.seq_length))
+    sio.savemat(filename, {"gt_pose": gt_poses, "pred_pose": pred_poses})
+    print("test finished")
 
 
 def test_depth():
-    geonet = GeoNetModel(opt)
-    model_op = GeoNetOperator(opt, geonet)
-    # for features in dataset:
-    #     model_op.predict()
+    pass
 
 
 def main(_):
@@ -103,17 +138,15 @@ def main(_):
     opt.add_posenet = opt.add_flownet and opt.flownet_type == 'residual' \
                       or opt.mode in ['train_rigid', 'test_pose']
 
-    pp = pprint.PrettyPrinter()
-    pp.pprint(flags.FLAGS.__flags)
-
-    tf.enable_eager_execution()
+    print("important opts", "\ndataset", opt.dataset_dir, "\ntfrecord", opt.tfrecords_dir,
+          "\ncheckpoint", opt.checkpoint_dir, "\nbatch", opt.batch_size)
 
     if opt.mode == 'train_rigid':
         train()
     elif opt.mode == 'test_depth':
-        test_depth(opt)
+        test_depth()
     elif opt.mode == 'test_pose':
-        test_pose(opt)
+        test_pose()
 
 
 if __name__ == '__main__':

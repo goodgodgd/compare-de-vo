@@ -1,17 +1,18 @@
 import tensorflow as tf
+from constants import InputShape
 
 
 # !!! when executing eagerly, return 'iterable' dataset
 # !!! when normal session, return 'tensors' of features and labels
 # guide line in https://www.tensorflow.org/programmers_guide/datasets#consuming_tfrecord_data
-def dataset_feeder(opt, split="train"):
+def dataset_feeder(opt, split, seq_length):
     # 파일 패턴으로 파일 리스트 입력
     file_pattern = ["{}/*_{}_*.tfrecord".format(opt.tfrecords_dir, split)]
     filenames = tf.gfile.Glob(file_pattern)
     dataset = tf.data.TFRecordDataset(filenames)
 
     def parse_example_opt(record):
-        return parse_example(record, opt.num_scales)
+        return parse_example(record, opt.num_scales, seq_length)
     # use `Dataset.map()` to build a pair of feature dictionary and label tensor for each example.
     dataset = dataset.map(parse_example_opt)
     return dataset_process(dataset, split, opt.batch_size, opt.train_epochs)
@@ -19,12 +20,11 @@ def dataset_feeder(opt, split="train"):
 
 # use `tf.parse_single_example()` to extract data from a `tf.Example` protocol buffer,
 # and perform any additional per-record preprocessing.
-def parse_example(record, num_scales):
+def parse_example(record, num_scales, seq_length):
     # np.to_string()으로 ndarray 이미지를 string으로 변환한 다음 저장했기 때문에 tf.string으로 불러옴
     keys_to_features = {
         "image": tf.FixedLenFeature((), tf.string, default_value=""),
         "image_shape": tf.FixedLenFeature((), tf.string, default_value=""),
-        "seq_len": tf.FixedLenFeature((), tf.int64, default_value=""),
         "gt": tf.FixedLenFeature((), tf.string, default_value=""),
         "gt_shape": tf.FixedLenFeature((), tf.string, default_value=""),
         "intrinsic": tf.FixedLenFeature((), tf.string, default_value=""),
@@ -34,7 +34,6 @@ def parse_example(record, num_scales):
     # parse metadata
     im_shape = tf.decode_raw(parsed["image_shape"], tf.int32)
     gt_shape = tf.decode_raw(parsed["gt_shape"], tf.int32)
-    seq_length = tf.cast(parsed["seq_len"], tf.int32)
 
     # parse main data
     image = tf.decode_raw(parsed["image"], tf.uint8)
@@ -45,38 +44,33 @@ def parse_example(record, num_scales):
     intrinsic = tf.reshape(intrinsic, shape=(3, 3))
 
     # perform additional preprocessing on the parsed data.
-    tgt_image, src_image_stack = unpack_image_sequence(image, im_shape[0], im_shape[1], seq_length)
+    tgt_image, src_image_stack = unpack_image_sequence(image, InputShape.HEIGHT,
+                                                       InputShape.WIDTH, seq_length)
     intrinsics_ms = get_multi_scale_intrinsics(intrinsic, num_scales)
 
     return {"target": tgt_image, "sources": src_image_stack,
-            "gt": gtruth, "intrinsics_ms": intrinsics_ms, "seq_len": seq_length}
+            "gt": gtruth, "intrinsics_ms": intrinsics_ms}
 
 
 def unpack_image_sequence(image_seq, img_height, img_width, seq_length):
-    num_sources = seq_length - 1
-    target_ind = int(num_sources // 2)
-    # Assuming the center image is the target frame
-    tgt_start_idx = int(img_width * target_ind)
+    tgt_ind = (seq_length - 1) // 2
+    # assuming the center image is the target frame
     tgt_image = tf.slice(image_seq,
-                         [0, tgt_start_idx, 0],
+                         [0, tgt_ind * img_width, 0],
                          [-1, img_width, -1])
-    # Source frames before the target frame
-    src_image_1 = tf.slice(image_seq,
-                           [0, 0, 0],
-                           [-1, int(img_width * target_ind), -1])
-    # Source frames after the target frame
-    src_image_2 = tf.slice(image_seq,
-                           [0, int(tgt_start_idx + img_width), 0],
-                           [-1, int(img_width * target_ind), -1])
-    src_image_seq = tf.concat([src_image_1, src_image_2], axis=1)
-    # Stack source frames along the color channels (i.e. [H, W, N*3])
-    src_image_stack = tf.concat([tf.slice(src_image_seq,
-                                [0, i*img_width, 0],
-                                [-1, img_width, -1])
-                                for i in range(num_sources)], axis=2)
+    # stack all other images as src_image_stack
+    src_image_stack = []
+    for src_ind in range(seq_length):
+        if src_ind != tgt_ind:
+            src_image = tf.slice(image_seq,
+                                 [0, src_ind * img_width, 0],
+                                 [-1, img_width, -1])
+            src_image_stack.append(src_image)
+    src_image_stack = tf.concat(src_image_stack, axis=2)
+
     src_image_stack.set_shape([img_height,
                                img_width,
-                               num_sources * 3])
+                               (seq_length - 1) * 3])
     tgt_image.set_shape([img_height, img_width, 3])
     return tgt_image, src_image_stack
 

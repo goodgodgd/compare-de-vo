@@ -70,20 +70,18 @@ def main(_):
     geonet = GeoNetModel(opt)
     model_op = GeoNetOperator(opt, geonet)
 
-    for i, features in enumerate(dataset):
-        src_image_stack = features["sources"]
-        tgt_image = features["target"]
-        gtruth = features["gt"]
-        intrinsics_ms = features["intrinsics_ms"]
-        # seq_length = features["seq_len"]
+    if tf.executing_eagerly():
+        for i, features in enumerate(dataset):
+            src_image_stack = features["sources"]
+            tgt_image = features["target"]
+            gtruth = features["gt"]
+            intrinsics_ms = features["intrinsics_ms"]
 
-        print("=========== features\n srcimg:", src_image_stack.shape)
-        print("tgtimg:", tgt_image.shape)
-        print("intrin:", intrinsics_ms.shape)
-        print("gtruth:", gtruth.shape)
-        # print("seqlen:", seq_length)
-        if i > 3:
-            break
+            print("=========== features")
+            print("srcimg:", src_image_stack.shape)
+            print("tgtimg:", tgt_image.shape)
+            print("intrin:", intrinsics_ms.shape)
+            print("gtruth:", gtruth.shape)
 
 
 if __name__ == '__main__':

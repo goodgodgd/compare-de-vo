@@ -41,8 +41,9 @@ class GeoNetModel(object):
                 if opt.flow_consistency_weight > 0:
                     self.build_flow_consistency()
 
-    def get_loss(self):
         self.build_losses()
+
+    def get_loss(self):
         return self.total_loss
 
     def get_pose_pred(self):

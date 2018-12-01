@@ -377,22 +377,6 @@ def pose_vec_to_mat(vec):
     return Tmat
 
 
-def dump_pose_seq_TUM(out_file, poses, times):
-    # First frame as the origin
-    first_pose = pose_vec_to_mat(poses[0])
-    with open(out_file, 'w') as f:
-        for p in range(len(times)):
-            this_pose = pose_vec_to_mat(poses[p])
-            # this_pose = np.dot(this_pose, np.linalg.inv(first_pose))
-            this_pose = np.dot(first_pose, np.linalg.inv(this_pose))
-            tx = this_pose[0, 3]
-            ty = this_pose[1, 3]
-            tz = this_pose[2, 3]
-            rot = this_pose[:3, :3]
-            qw, qx, qy, qz = rot2quat(rot)
-            f.write('%f %f %f %f %f %f %f %f\n' % (times[p], tx, ty, tz, qx, qy, qz, qw))
-
-
 def format_pose_seq_TUM(poses):
     if isinstance(poses, list):
         tum_poses = format_pose_list(poses)
