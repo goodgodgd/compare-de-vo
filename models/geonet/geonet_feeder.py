@@ -11,8 +11,7 @@ def dataset_feeder(opt, split="train"):
     dataset = tf.data.TFRecordDataset(filenames)
 
     def parse_example_opt(record):
-        return parse_example(record, opt.img_height, opt.img_width, opt.seq_length, opt.num_scales)
-
+        return parse_example(record, opt.num_scales)
     # use `Dataset.map()` to build a pair of feature dictionary and label tensor for each example.
     dataset = dataset.map(parse_example_opt)
     return dataset_process(dataset, split, opt.batch_size, opt.train_epochs)
@@ -20,30 +19,37 @@ def dataset_feeder(opt, split="train"):
 
 # use `tf.parse_single_example()` to extract data from a `tf.Example` protocol buffer,
 # and perform any additional per-record preprocessing.
-def parse_example(record, img_height, img_width, seq_length, num_scales):
+def parse_example(record, num_scales):
     # np.to_string()으로 ndarray 이미지를 string으로 변환한 다음 저장했기 때문에 tf.string으로 불러옴
     keys_to_features = {
         "image": tf.FixedLenFeature((), tf.string, default_value=""),
+        "image_shape": tf.FixedLenFeature((), tf.string, default_value=""),
+        "seq_len": tf.FixedLenFeature((), tf.int64, default_value=""),
         "gt": tf.FixedLenFeature((), tf.string, default_value=""),
+        "gt_shape": tf.FixedLenFeature((), tf.string, default_value=""),
         "intrinsic": tf.FixedLenFeature((), tf.string, default_value=""),
     }
     parsed = tf.parse_single_example(record, keys_to_features)
 
-    # perform additional preprocessing on the parsed data.
-    # string to numeric type
+    # parse metadata
+    im_shape = tf.decode_raw(parsed["image_shape"], tf.int32)
+    gt_shape = tf.decode_raw(parsed["gt_shape"], tf.int32)
+    seq_length = tf.cast(parsed["seq_len"], tf.int32)
+
+    # parse main data
     image = tf.decode_raw(parsed["image"], tf.uint8)
-    image = tf.cast(image, tf.float32)
-    image = tf.divide(image, 255)
-    image = tf.reshape(image, shape=(img_height, img_width*seq_length, 3))
-    tgt_image, src_image_stack = unpack_image_sequence(image, img_height, img_width, seq_length)
-
+    image = tf.reshape(image, shape=im_shape)
     gtruth = tf.decode_raw(parsed["gt"], tf.float32)
-
+    gtruth = tf.reshape(gtruth, shape=gt_shape)
     intrinsic = tf.decode_raw(parsed["intrinsic"], tf.float32)
     intrinsic = tf.reshape(intrinsic, shape=(3, 3))
+
+    # perform additional preprocessing on the parsed data.
+    tgt_image, src_image_stack = unpack_image_sequence(image, im_shape[0], im_shape[1], seq_length)
     intrinsics_ms = get_multi_scale_intrinsics(intrinsic, num_scales)
+
     return {"target": tgt_image, "sources": src_image_stack,
-            "gt": gtruth, "intrinsics_ms": intrinsics_ms}
+            "gt": gtruth, "intrinsics_ms": intrinsics_ms, "seq_len": seq_length}
 
 
 def unpack_image_sequence(image_seq, img_height, img_width, seq_length):

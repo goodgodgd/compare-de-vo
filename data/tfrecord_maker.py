@@ -1,9 +1,6 @@
 import os
 import sys
-
-module_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if module_path not in sys.path: sys.path.append(module_path)
-from data.datafeeders_for_tfrd import *
+from data.tfrd_feeder import *
 
 
 class TfrecordsMaker:
@@ -18,7 +15,7 @@ class TfrecordsMaker:
         opt = self.opt
         data_feeders = self._load_split(split)
 
-        num_images = len(data_feeders["image"])
+        num_images = len(data_feeders[0])
         num_shards = max(min(num_images // 5000, 10), 1)
         num_images_per_shard = num_images // num_shards
         print("tfrecord maker started: dataset_name={}, split={}".format(opt.dataset_name, split))
@@ -46,8 +43,8 @@ class TfrecordsMaker:
     @staticmethod
     def create_next_example_dict(feeders):
         example = dict()
-        for key, datafeeder in feeders.items():
-            example[key] = datafeeder.get_next()
+        for feeder in feeders:
+            example.update(feeder.get_next())
         return example
 
     @staticmethod
@@ -78,37 +75,37 @@ class KittiTfrdMaker(TfrecordsMaker):
 
     def _load_split(self, split):
         dataset_dir = self.opt.dataset_dir
-        dstsize = (self.opt.img_width, self.opt.img_height)
         list_file = "{}/{}.txt".format(dataset_dir, split)
         print("frame list file for {}:".format(split), list_file)
-        image_list, gt_list, cam_file = self._read_filelist(dataset_dir, list_file)
-        assert len(image_list) == len(gt_list)
+        image_list, gt_list, cam_list = self._read_filelist(dataset_dir, list_file)
+        N = len(image_list)
+        assert N == len(gt_list)
 
-        intrinsics = np.loadtxt(cam_file, dtype=np.float32)
-        num_frames = len(image_list)
+        gt_feeder = None
+        # pose written in readable text
+        if self.opt.dataset_name == "kitti_odom":
+            gt_feeder = TextFeeder("gt", gt_list, dtype=np.float32)
+        elif self.opt.dataset_name == "kitti_raw_eigen":
+            # no depth available for train data
+            if split == "train":
+                gt_feeder = ConstFeeder("gt", np.array([0], dtype=np.float32), N)
+            # depth is available for test data
+            elif split == "test":
+                gt_feeder = NpyFeeder("gt", gt_list, dtype=np.float32)
 
-        def resize(image, dsize=dstsize):
-            width, height = dsize
-            if width > 0 and height > 0:
-                return cv2.resize(image, dsize)
-            else:
-                return image
-
-        def reshape(intrinsic):
-            return np.reshape(intrinsic, (3, 3))
-
-        data_feeders = {
-            'image': ImageFeeder(image_list, preproc_fn=resize),
-            'gt': TextFeeder(gt_list, preproc_fn=reshape),
-            'intrinsic': ConstFeeder(intrinsics, num_frames),
-        }
+        data_feeders = [
+            ImageFeeder("image", image_list, dtype=np.uint8),
+            gt_feeder,
+            TextFeeder("intrinsic", cam_list, dtype=np.float32, shape_out=False),
+            IntegerFeeder("seq_len", self.opt.seq_length, N)
+        ]
         return data_feeders
 
     @staticmethod
     def _read_filelist(dataset_root, list_file):
         image_files = []
         gt_files = []
-        cam_file = None
+        cam_files = []
 
         with open(list_file, 'r') as f:
             for line in f:
@@ -120,6 +117,6 @@ class KittiTfrdMaker(TfrecordsMaker):
                 image_files.append(imgfile)
                 gtfile = os.path.join(dataset_root, seq_dir, "gt", frame_id+"_gt.txt")
                 gt_files.append(gtfile)
-                if cam_file is None:
-                    cam_file = os.path.join(dataset_root, seq_dir, "intrinsics.txt")
-        return image_files, gt_files, cam_file
+                camfile = os.path.join(dataset_root, seq_dir, "intrinsics.txt")
+                cam_files.append(camfile)
+        return image_files, gt_files, cam_files
