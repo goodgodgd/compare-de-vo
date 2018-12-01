@@ -24,6 +24,10 @@ opt = parser.parse_args()
 
 
 def concat_image_seq(seq):
+    # when single image, return it right away
+    if isinstance(seq, np.ndarray):
+        return seq
+    # seq: list of numpy images
     res = None
     for i, im in enumerate(seq):
         if i == 0:
@@ -160,6 +164,7 @@ def main():
         write_frames_three_splits(data_loader.test_frames, "test.txt")
     print("\nfinished writing test frames!!")
 
+    return
     #
     def train_feeder(n):
         return data_loader.get_train_example_with_idx(n)

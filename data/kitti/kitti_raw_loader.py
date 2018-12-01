@@ -156,7 +156,7 @@ class KittiRawLoader(DataLoader):
         return False
 
     def load_example(self, frames, tgt_idx, is_test: bool):
-        image_seq, zoom_x, zoom_y = self.load_target_image_padded(frames, tgt_idx, self.seq_length) \
+        image_seq, zoom_x, zoom_y = self.load_target_image(frames, tgt_idx) \
             if is_test else self.load_image_sequence(frames, tgt_idx, self.seq_length)
         # dirname(e.g. 2011_09_26_drive_0001_sync), camera_id(e.g. 02), frame_id(e.g. 0000000001)
         tgt_drive, tgt_cid, tgt_frame_id = frames[tgt_idx].split(' ')
@@ -185,18 +185,14 @@ class KittiRawLoader(DataLoader):
             image_seq.append(curr_img)
         return image_seq, zoom_x, zoom_y
 
-    # when testing, only target image is used. so leave left and right images blank
-    def load_target_image_padded(self, frames, tgt_idx, seq_length):
+    # when testing, only target image is used
+    def load_target_image(self, frames, tgt_idx):
         tgt_drive, tgt_cid, tgt_frame_id = frames[tgt_idx].split(' ')
         tgt_img = self.load_image_raw(tgt_drive, tgt_cid, tgt_frame_id)
         zoom_y = self.img_height/tgt_img.shape[0]
         zoom_x = self.img_width/tgt_img.shape[1]
         image_rsz = scipy.misc.imresize(tgt_img, (self.img_height, self.img_width))
-
-        image_out = np.zeros([self.img_height, self.img_width*seq_length, 3], dtype=np.float32)
-        half_offset = int((seq_length - 1)/2)
-        image_out[:, self.img_width*half_offset:self.img_width*(half_offset+1)] = image_rsz
-        return image_out, zoom_x, zoom_y
+        return image_rsz, zoom_x, zoom_y
 
     def load_image_raw(self, drive, cid, frame_id):
         date = drive[:10]
