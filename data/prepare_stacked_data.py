@@ -22,7 +22,7 @@ parser.add_argument("--num_threads",   type=int, default=4,     help="number of 
 parser.add_argument("--remove_static", help="remove static frames from kitti raw data", action='store_true')
 opt = parser.parse_args()
 
-intrinsics_to_save = dict()
+dump_list = []
 
 
 def concat_image_seq(seq):
@@ -50,8 +50,10 @@ def dump_example(n, data_feeder, num_split):
     dump_dir = os.path.join(opt.dump_root, example['folder_name'])
 
     # keep intrinsics for each dir
-    if dump_dir not in intrinsics_to_save.keys():
-        intrinsics_to_save[dump_dir] = intrinsics
+    if dump_dir not in dump_list:
+        dump_list.append(dump_dir)
+        dump_cam_file = '{}/intrinsics.txt'.format(dump_dir)
+        np.savetxt(dump_cam_file, intrinsics, fmt='%.6f', delimiter=',')
 
     try:
         os.makedirs(os.path.join(dump_dir, 'gt'))
@@ -112,12 +114,6 @@ def write_frames_three_splits(frames, filename):
             f.write("{}_{} {}\n".format(drive, camid, frameid))
 
 
-def save_camera_matrices(intrinsics):
-    for dump_dir, intrin in intrinsics.items():
-        dump_cam_file = '{}/intrinsics.txt'.format(dump_dir)
-        np.savetxt(dump_cam_file, intrinsics, fmt='%.6f', delimiter=',')
-
-
 def main():
     if not os.path.exists(opt.dump_root):
         os.makedirs(opt.dump_root)
@@ -156,14 +152,14 @@ def main():
                                         img_width=opt.img_width,
                                         seq_length=opt.seq_length)
 
-    def train_feeder(n):
-        return data_loader.get_train_example_with_idx(n)
-    # save train/val data
-    Parallel(n_jobs=opt.num_threads)(delayed(dump_example)(n, train_feeder, data_loader.num_train)
-                                     for n in range(data_loader.num_train))
-    # save train/val file list in the exactly same way with GeoNet
-    write_train_frames()
-    print("\nfinished writing train frames!!")
+    # def train_feeder(n):
+    #     return data_loader.get_train_example_with_idx(n)
+    # # save train/val data
+    # Parallel(n_jobs=opt.num_threads)(delayed(dump_example)(n, train_feeder, data_loader.num_train)
+    #                                  for n in range(data_loader.num_train))
+    # # save train/val file list in the exactly same way with GeoNet
+    # write_train_frames()
+    # print("\nfinished writing train frames!!")
 
     # IMPORTANT! train/val data MUST be processed before test
 
@@ -182,8 +178,6 @@ def main():
         write_frames_three_splits(data_loader.test_frames, "test.txt")
     print("\nfinished writing test frames!!")
 
-    save_camera_matrices(intrinsics_to_save)
-    print("\nsaved intrinsic files!!")
 
 
 if __name__ == '__main__':

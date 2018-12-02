@@ -20,8 +20,8 @@ flags.DEFINE_string("tfrecords_dir",                "",    "tfrecords directory"
 flags.DEFINE_string("init_ckpt_file",             None,    "Specific checkpoint file to initialize from")
 flags.DEFINE_integer("batch_size",                   4,    "The size of of a sample batch")
 flags.DEFINE_integer("num_threads",                 32,    "Number of threads for data loading")
-flags.DEFINE_integer("img_height",                 128,    "Image height")
-flags.DEFINE_integer("img_width",                  416,    "Image width")
+# flags.DEFINE_integer("img_height",                 128,    "Image height")
+# flags.DEFINE_integer("img_width",                  416,    "Image width")
 flags.DEFINE_integer("seq_length",                   3,    "Sequence length for each example")
 
 # #### Training Configurations #####
@@ -29,7 +29,6 @@ flags.DEFINE_string("checkpoint_dir",               "",    "Directory name to sa
 flags.DEFINE_float("learning_rate",             0.0002,    "Learning rate for adam")
 flags.DEFINE_integer("max_to_keep",                 20,    "Maximum number of checkpoints to save")
 flags.DEFINE_integer("train_epochs",                50,    "number of epochs for training")
-# flags.DEFINE_integer("max_steps",             300000,    "Maximum number of training iterations")
 # flags.DEFINE_integer("save_ckpt_freq",          5000,    "Save the checkpoint model every save_ckpt_freq iterations")
 flags.DEFINE_float("alpha_recon_image",           0.85,    "Alpha weight between SSIM and L1 in reconstruction loss")
 
@@ -50,7 +49,6 @@ flags.DEFINE_float("flow_consistency_beta",       0.05,    "Beta for flow consis
 # #### Testing Configurations #####
 flags.DEFINE_string("output_dir",                 None,    "Test result output directory")
 flags.DEFINE_string("depth_test_split",        "eigen",    "KITTI depth split, eigen or stereo")
-# flags.DEFINE_integer("pose_test_seq",                9,    "KITTI Odometry Sequence ID to test")
 
 
 # #### Additional Configurations #####
@@ -67,9 +65,12 @@ def train():
     set_random_seed()
     if not os.path.exists(opt.checkpoint_dir):
         os.makedirs(opt.checkpoint_dir)
+
+    def data_feeder():
+        return dataset_feeder(opt, "train", opt.seq_length)
     geonet = GeoNetModel(opt)
     model_op = GeoNetOperator(opt, geonet)
-    model_op.train()
+    model_op.train(data_feeder)
 
 
 def set_random_seed():
@@ -80,14 +81,13 @@ def set_random_seed():
 
 
 def test_pose():
-    # tf.enable_eager_execution()
     geonet = GeoNetModel(opt)
     input_uint8 = tf.placeholder(tf.uint8, [opt.batch_size, InputShape.HEIGHT, InputShape.WIDTH,
                                             opt.seq_length * 3], name='raw_input')
     tgt_image = input_uint8[:, :, :, :3]
     src_image_stack = input_uint8[:, :, :, 3:]
     geonet.build_model(tgt_image, src_image_stack, None)
-    fetches = {"pose": geonet.pred_poses}
+    fetches = {"pose": geonet.get_pose_pred()}
     saver = tf.train.Saver([var for var in tf.model_variables()])
     dataset_iter = dataset_feeder(opt, "test", opt.seq_length)
 
@@ -110,6 +110,7 @@ def test_pose():
                     pred_pose_tum = format_pose_seq_TUM(pred_pose_batch[b, :, :])
                     pred_poses.append(pred_pose_tum)
             except tf.errors.OutOfRangeError:
+                print("dataset finished at step", i*opt.batch_size)
                 break
 
     gt_poses = np.concatenate(gt_poses, axis=0)
@@ -125,10 +126,46 @@ def test_pose():
 
 
 def test_depth():
-    pass
+    geonet = GeoNetModel(opt)
+    input_uint8 = tf.placeholder(tf.uint8, [opt.batch_size, InputShape.HEIGHT, InputShape.WIDTH,
+                                            opt.seq_length * 3], name='raw_input')
+    tgt_image = input_uint8[:, :, :, :3]
+    geonet.build_model(tgt_image, None, None)
+    fetches = {"depth": geonet.get_depth_pred()}
+    saver = tf.train.Saver([var for var in tf.model_variables()])
+    dataset_iter = dataset_feeder(opt, "test", opt.seq_length)
+
+    gt_depths = []
+    pred_depths = []
+
+    with tf.Session() as sess:
+        saver.restore(sess, opt.init_ckpt_file)
+        for i in range(1000000):
+            try:
+                inputs = sess.run(dataset_iter)
+                pred = sess.run(fetches, feed_dict={tgt_image: inputs["target"]})
+                gt_depths.append(inputs["gt"])
+                pred_depths.append(pred["depth"])
+            except tf.errors.OutOfRangeError:
+                print("dataset finished at step", i)
+                break
+
+    print("depths shape (gt, pred)", gt_depths[0].shape, pred_depths[0].shape)
+    for i, (gt_depth, pred_depth) in enumerate(zip(gt_depths, pred_depths)):
+        filename = os.path.join(opt.output_dir, "gt_depth_{:05d}".format(i))
+        np.save(filename, gt_depth)
+        filename = os.path.join(opt.output_dir, "pred_depth_{:05d}".format(i))
+        np.save(filename, pred_depth)
 
 
 def main(_):
+    if opt.mode == "train_rigid":
+        opt.seq_length = 3
+    elif opt.mode == "test_pose":
+        opt.seq_length = 5
+    elif opt.mode == "test_depth":
+        opt.seq_length = 1
+        opt.batch_size = 1
     opt.num_source = opt.seq_length - 1
     opt.num_scales = 4
 

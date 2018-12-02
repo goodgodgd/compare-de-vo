@@ -68,6 +68,7 @@ class KittiRawLoader(DataLoader):
         self.train_frames = self.collect_train_frames()
         # self.train_frames = self.train_frames[:100]
         self.test_frames = self.collect_test_frames(self.split)
+        # self.test_frames = self.test_frames[:50]
         if self.remove_static:
             self.remove_static_frames()
 

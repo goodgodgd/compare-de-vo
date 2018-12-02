@@ -56,19 +56,27 @@ def main(_):
     tf.enable_eager_execution()
     print("enable eager execution")
 
-    opt.mode = "test_pose"
+    opt.mode = "test_depth"
 
     if opt.mode == "test_pose":
         opt.dataset_dir = "/home/ian/workplace/CompareDevo/geonet_data/kitti_odom"
         opt.tfrecords_dir = "/home/ian/workplace/CompareDevo/geonet_data/tfrecords/kitti_odom"
         opt.checkpoint_dir = "/home/ian/workplace/CompareDevo/ckpts/geonet_posenet"
-        opt.seq_length = 5
         opt.batch_size = 4
+        opt.seq_length = 5
         opt.num_source = 4
 
+    if opt.mode == "test_depth":
+        opt.dataset_dir = "/home/ian/workplace/CompareDevo/geonet_data/kitti_raw_eigen"
+        opt.tfrecords_dir = "/home/ian/workplace/CompareDevo/geonet_data/tfrecords/kitti_raw_eigen"
+        opt.checkpoint_dir = "/home/ian/workplace/CompareDevo/ckpts/geonet_depthnet"
+        opt.batch_size = 4
+        opt.seq_length = 1
+        opt.num_source = 2
+
     dataset = dataset_feeder(opt, "test", opt.seq_length)
-    geonet = GeoNetModel(opt)
-    model_op = GeoNetOperator(opt, geonet)
+    # geonet = GeoNetModel(opt)
+    # model_op = GeoNetOperator(opt, geonet)
 
     if tf.executing_eagerly():
         for i, features in enumerate(dataset):
@@ -82,6 +90,9 @@ def main(_):
             print("tgtimg:", tgt_image.shape)
             print("intrin:", intrinsics_ms.shape)
             print("gtruth:", gtruth.shape)
+
+            if i >= 10:
+                break
 
 
 if __name__ == '__main__':

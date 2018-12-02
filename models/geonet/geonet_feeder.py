@@ -53,6 +53,9 @@ def parse_example(record, num_scales, seq_length):
 
 
 def unpack_image_sequence(image_seq, img_height, img_width, seq_length):
+    if seq_length == 1:
+        return image_seq, image_seq
+
     tgt_ind = (seq_length - 1) // 2
     # assuming the center image is the target frame
     tgt_image = tf.slice(image_seq,

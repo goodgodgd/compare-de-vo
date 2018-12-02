@@ -1,5 +1,3 @@
-import os
-import numpy as np
 import tensorflow as tf
 
 tf.logging.set_verbosity(tf.logging.INFO)
@@ -34,27 +32,11 @@ class ModelOperator:
         eval_results = self.estimator.evaluate(input_fn=data_feeder, hooks=logging_hook)
         return eval_results
 
-    def predict_from_feeder(self, data_feeder):
+    def predict(self, data_feeder):
         # predict classification result by the model
         pred_result = self.estimator.predict(input_fn=data_feeder)
         pred_result = list(pred_result)[0]
         return pred_result
-
-    def predict_from_features(self, features):
-        data_feeder = tf.estimator.inputs.numpy_input_fn(
-            x={"sources": features["sources"].numpy(),
-               "target": features["target"].numpy(),
-               "intrinsics_ms": features["intrinsics_ms"].numpy()},
-            num_epochs=1,
-            shuffle=False
-        )
-        # predict classification result by the model
-        pred_result = self.estimator.predict(input_fn=data_feeder)
-        pred_result = list(pred_result)[0]
-        return pred_result
-
-    def save_result(self):
-        raise NotImplementedError()
 
     def _get_logging_hook(self, show_log):
         if show_log is False:
@@ -84,9 +66,7 @@ class GeoNetOperator(ModelOperator):
             prediction = self.model.get_depth_pred()
         # format return type of estimator.predict()
         predictions = {"prediction": prediction}
-
         loss = self.model.get_loss()
-        print("`````loss", loss)
 
         if mode == tf.estimator.ModeKeys.PREDICT:
             return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)

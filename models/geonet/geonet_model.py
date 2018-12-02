@@ -50,7 +50,9 @@ class GeoNetModel(object):
         return self.pred_poses
 
     def get_depth_pred(self):
-        return self.pred_depth
+        # pred_depth is a list of tensors, correspoing to multiple scales
+        # take only the largest scale for prediction
+        return self.pred_depth[0]
 
     def get_flow_pred(self):
         return self.pred_flow
