@@ -77,26 +77,27 @@ class KittiTfrdMaker(TfrecordsMaker):
         dataset_dir = self.opt.dataset_dir
         list_file = "{}/{}.txt".format(dataset_dir, split)
         print("frame list file for {}:".format(split), list_file)
-        image_list, gt_list, cam_list = self._read_filelist(dataset_dir, list_file)
+        image_list, gt_list, cam_list, frames = self._read_filelist(dataset_dir, list_file)
         N = len(image_list)
         assert N == len(gt_list)
 
         gt_feeder = None
         # pose written in readable text
         if self.opt.dataset_name == "kitti_odom":
-            gt_feeder = TextFeeder("gt", gt_list, dtype=np.float32)
+            gt_feeder = TextFeeder("gt", gt_list, shape_out=True, dtype=np.float32)
         elif self.opt.dataset_name == "kitti_raw_eigen":
             # no depth available for train data
             if split == "train":
-                gt_feeder = ConstFeeder("gt", np.array([0], dtype=np.float32), N)
+                gt_feeder = ConstFeeder("gt", np.array([0], dtype=np.float32), N, shape_out=True)
             # depth is available for test data
             elif split == "test":
-                gt_feeder = NpyFeeder("gt", gt_list, dtype=np.float32)
+                gt_feeder = NpyFeeder("gt", gt_list, shape_out=True, dtype=np.float32)
 
         data_feeders = [
-            ImageFeeder("image", image_list, dtype=np.uint8),
+            ImageFeeder("image", image_list, shape_out=True, dtype=np.uint8),
             gt_feeder,
-            TextFeeder("intrinsic", cam_list, dtype=np.float32, shape_out=False),
+            TextFeeder("intrinsic", cam_list, shape_out=False, dtype=np.float32),
+            StringFeeder("frame", frames),
         ]
         return data_feeders
 
@@ -105,6 +106,7 @@ class KittiTfrdMaker(TfrecordsMaker):
         image_files = []
         gt_files = []
         cam_files = []
+        frames = []
 
         with open(list_file, 'r') as f:
             for line in f:
@@ -112,6 +114,7 @@ class KittiTfrdMaker(TfrecordsMaker):
                 seq_dir = paths[0]
                 frame_id = paths[1][:-1]
 
+                frames.append(line[:-1])
                 imgfile = os.path.join(dataset_root, seq_dir, frame_id+".jpg")
                 image_files.append(imgfile)
                 gtfile = os.path.join(dataset_root, seq_dir, "gt", frame_id + "_gt.txt")
@@ -120,4 +123,4 @@ class KittiTfrdMaker(TfrecordsMaker):
                 gt_files.append(gtfile)
                 camfile = os.path.join(dataset_root, seq_dir, "intrinsics.txt")
                 cam_files.append(camfile)
-        return image_files, gt_files, cam_files
+        return image_files, gt_files, cam_files, frames

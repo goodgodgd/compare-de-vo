@@ -28,6 +28,7 @@ def parse_example(record, num_scales, seq_length):
         "gt": tf.FixedLenFeature((), tf.string, default_value=""),
         "gt_shape": tf.FixedLenFeature((), tf.string, default_value=""),
         "intrinsic": tf.FixedLenFeature((), tf.string, default_value=""),
+        "frame": tf.FixedLenFeature((), tf.string, default_value=""),
     }
     parsed = tf.parse_single_example(record, keys_to_features)
 
@@ -42,6 +43,7 @@ def parse_example(record, num_scales, seq_length):
     gtruth = tf.reshape(gtruth, shape=gt_shape)
     intrinsic = tf.decode_raw(parsed["intrinsic"], tf.float32)
     intrinsic = tf.reshape(intrinsic, shape=(3, 3))
+    frame_int8 = tf.decode_raw(parsed["frame"], tf.int8)
 
     # perform additional preprocessing on the parsed data.
     tgt_image, src_image_stack = unpack_image_sequence(image, InputShape.HEIGHT,
@@ -49,7 +51,7 @@ def parse_example(record, num_scales, seq_length):
     intrinsics_ms = get_multi_scale_intrinsics(intrinsic, num_scales)
 
     return {"target": tgt_image, "sources": src_image_stack,
-            "gt": gtruth, "intrinsics_ms": intrinsics_ms}
+            "gt": gtruth, "intrinsics_ms": intrinsics_ms, "frame_int8": frame_int8}
 
 
 def unpack_image_sequence(image_seq, img_height, img_width, seq_length):

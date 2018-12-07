@@ -33,7 +33,7 @@ class RawDataFeeder(object):
 
 
 class FileFeeder(RawDataFeeder):
-    def __init__(self, name, file_list, dtype, preproc_fn=None, shape_out: bool=True):
+    def __init__(self, name, file_list, dtype, shape_out, preproc_fn=None):
         self.name = name
         self.files = file_list
         self.dtype = dtype
@@ -76,8 +76,8 @@ class FileFeeder(RawDataFeeder):
 
 
 class ImageFeeder(FileFeeder):
-    def __init__(self, name, file_list, dtype, preproc_fn=None, shape_out: bool=True):
-        super().__init__(name, file_list, dtype, preproc_fn, shape_out)
+    def __init__(self, name, file_list, dtype, shape_out, preproc_fn=None):
+        super().__init__(name, file_list, dtype, shape_out, preproc_fn)
         print("ImageFeeder created for {} files".format(len(file_list)))
 
     @staticmethod
@@ -87,8 +87,8 @@ class ImageFeeder(FileFeeder):
 
 
 class TextFeeder(FileFeeder):
-    def __init__(self, name, file_list, dtype, preproc_fn=None, shape_out: bool=True):
-        super().__init__(name, file_list, dtype, preproc_fn, shape_out)
+    def __init__(self, name, file_list, dtype, shape_out, preproc_fn=None):
+        super().__init__(name, file_list, dtype, shape_out, preproc_fn)
         print("TextFeeder created for {} files".format(len(file_list)))
 
     @staticmethod
@@ -98,8 +98,8 @@ class TextFeeder(FileFeeder):
 
 
 class NpyFeeder(FileFeeder):
-    def __init__(self, name, file_list, dtype, preproc_fn=None, shape_out: bool=True):
-        super().__init__(name, file_list, dtype, preproc_fn, shape_out)
+    def __init__(self, name, file_list, dtype, shape_out, preproc_fn=None):
+        super().__init__(name, file_list, dtype, shape_out, preproc_fn)
         print("NpyFeeder created for {} files".format(len(file_list)))
 
     @staticmethod
@@ -109,10 +109,11 @@ class NpyFeeder(FileFeeder):
 
 
 class ConstFeeder(RawDataFeeder):
-    def __init__(self, name, data, length):
+    def __init__(self, name, data, length, shape_out):
         self.name = name
         self.data = data
         self.length = length
+        self.shape_out = shape_out
         print("ConstFeeder created, len={}".format(length))
 
     def __len__(self):
@@ -120,7 +121,12 @@ class ConstFeeder(RawDataFeeder):
 
     def get_next(self):
         # wrap a single raw data as tf.train.Features()
-        return {self.name: self.convert_to_feature(self.data)}
+        features = dict()
+        features[self.name] = self.convert_to_feature(self.data)
+        if self.shape_out:
+            shape = np.array(self.data.shape, dtype=np.int32)
+            features[self.name+'_shape'] = self.convert_to_feature(shape)
+        return features
 
     def convert_to_feature(self, rawdata):
         bytes_data = rawdata.tostring()
@@ -143,3 +149,24 @@ class IntegerFeeder(RawDataFeeder):
 
     def convert_to_feature(self, value):
         return self.wrap_int64(value)
+
+
+class StringFeeder(RawDataFeeder):
+    def __init__(self, name, strings):
+        self.name = name
+        self.strings = strings
+        self.idx = -1
+        print("StringFeeder created, len={}".format(len(strings)))
+
+    def __len__(self):
+        return len(self.strings)
+
+    def get_next(self):
+        self.idx = self.idx + 1
+        if self.idx >= len(self.strings):
+            raise IndexError()
+        # wrap a single raw data as tf.train.Features()
+        return {self.name: self.convert_to_feature(self.strings[self.idx])}
+
+    def convert_to_feature(self, string):
+        return self.wrap_bytes(bytes(string, 'utf-8'))

@@ -6,7 +6,6 @@ import argparse
 import scipy.misc
 import numpy as np
 from glob import glob
-from joblib import Parallel, delayed
 
 module_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if module_path not in sys.path: sys.path.append(module_path)
@@ -67,7 +66,7 @@ def dump_example(n, data_feeder, num_split):
 
     # save gt data
     if "odom" in opt.dataset_name:
-        dump_gt_file = '{}/gt/{:06d}_gt.txt'.format(dump_dir, int(example['file_name'])-1)
+        dump_gt_file = '{}/gt/{}_gt.txt'.format(dump_dir, example['file_name'])
         np.savetxt(dump_gt_file, gt, fmt='%.6f', delimiter=',')
     elif "eigen" in opt.dataset_name and gt is not None:
         dump_gt_file = '{}/gt/{}_gt.npy'.format(dump_dir, example['file_name'])
@@ -157,8 +156,8 @@ def main():
     # def train_feeder(n):
     #     return data_loader.get_train_example_with_idx(n)
     # # save train/val data
-    # Parallel(n_jobs=opt.num_threads)(delayed(dump_example)(n, train_feeder, data_loader.num_train)
-    #                                  for n in range(data_loader.num_train))
+    # for n in range(data_loader.num_train):
+    #     dump_example(n, train_feeder, data_loader.num_train)
     # # save train/val file list in the exactly same way with GeoNet
     # write_train_frames()
     # print("\nfinished writing train frames!!")
@@ -168,8 +167,8 @@ def main():
     def test_feeder(n):
         return data_loader.get_test_example_with_idx(n)
     # save test data
-    Parallel(n_jobs=opt.num_threads)(delayed(dump_example)(n, test_feeder, data_loader.num_test)
-                                     for n in range(data_loader.num_test))
+    for n in range(data_loader.num_test):
+        dump_example(n, test_feeder, data_loader.num_test)
 
     # save test file list
     def is_valid_sample(frames, idx):
@@ -179,7 +178,6 @@ def main():
     if opt.dataset_name == 'kitti_raw_eigen':
         write_frames_three_splits(data_loader.test_frames, "test.txt")
     print("\nfinished writing test frames!!")
-
 
 
 if __name__ == '__main__':

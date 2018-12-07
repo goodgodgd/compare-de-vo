@@ -61,6 +61,25 @@ flags.DEFINE_integer("add_posenet",                  0,    "whether posenet is i
 opt = flags.FLAGS
 
 
+def save_pose_result(pose_seqs, output_root, dirname, frames):
+    if not os.path.isdir(os.path.join(output_root, dirname)):
+        raise FileNotFoundError()
+
+    save_path = os.path.join(output_root, dirname, "pose")
+    sequences = []
+    for i, (poseseq, frame) in enumerate(zip(pose_seqs, frames)):
+        seq_id, frame_id = frame.split(" ")
+        if seq_id not in sequences:
+            sequences.append(seq_id)
+            if not os.path.isdir(os.path.join(save_path, seq_id)):
+                os.makedirs(os.path.join(save_path, seq_id))
+
+        half_seq = (opt.seq_length - 1) // 2
+        filename = os.path.join(save_path, seq_id, "{:06d}.txt".format(int(frame_id)-half_seq))
+        np.savetxt(filename, poseseq)
+    print("pose results were saved!!")
+
+
 def train():
     set_random_seed()
     if not os.path.exists(opt.checkpoint_dir):
@@ -93,6 +112,7 @@ def test_pose():
 
     gt_poses = []
     pred_poses = []
+    frames = []
     target_ind = (opt.seq_length - 1)//2
 
     with tf.Session() as sess:
@@ -102,27 +122,22 @@ def test_pose():
                 inputs = sess.run(dataset_iter)
                 pred = sess.run(fetches, feed_dict={tgt_image: inputs["target"],
                                                     src_image_stack: inputs["sources"]})
-                gt_poses.append(inputs["gt"])
+                frame_batch = [bytes(frame).decode("utf-8") for frame in inputs["frame_int8"]]
+                frames.extend(frame_batch)
+                gt_pose_batch = inputs["gt"]
                 pred_pose_batch = pred["pose"]
                 pred_pose_batch = np.insert(pred_pose_batch, target_ind, np.zeros((1, 6)), axis=1)
                 for b in range(opt.batch_size):
-                    # insert the target pose [0, 0, 0, 0, 0, 0] into the middle 
                     pred_pose_tum = format_pose_seq_TUM(pred_pose_batch[b, :, :])
                     pred_poses.append(pred_pose_tum)
+                    gt_poses.append(gt_pose_batch[b, :, :])
             except tf.errors.OutOfRangeError:
                 print("dataset finished at step", i*opt.batch_size)
                 break
 
-    gt_poses = np.concatenate(gt_poses, axis=0)
-    pred_poses = np.stack(pred_poses, axis=0)
-    print("poses shape (gt, pred)", gt_poses.shape, pred_poses.shape)
-    filename = os.path.join(opt.output_dir, "gt_pose_seq_{}".format(opt.seq_length))
-    np.save(filename, gt_poses)
-    filename = os.path.join(opt.output_dir, "pred_pose_seq_{}".format(opt.seq_length))
-    np.save(filename, pred_poses)
-    filename = os.path.join(opt.output_dir, "pose_seq_{}".format(opt.seq_length))
-    sio.savemat(filename, {"gt_pose": gt_poses, "pred_pose": pred_poses})
-    print("test finished")
+    print("output length (gt, pred)", len(gt_poses), len(pred_poses))
+    # one can evaluate pose errors here but we save results and evaluate it in the next step
+    save_pose_result(pred_poses, opt.output_dir, "geonet", frames)
 
 
 def test_depth():
