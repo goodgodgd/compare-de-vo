@@ -60,37 +60,36 @@ class KittiOdomLoader(DataLoader):
             split_frames.append('%.2d %.6d' % (seq, n))
         return split_frames
 
-    def generate_pose_snippets(self, dataset_dir, seq_id, seq_length):
+    @staticmethod
+    def generate_pose_snippets(dataset_dir, seq_id, seq_length):
         pose_gt_dir = os.path.join(dataset_dir, 'poses')
         seq_dir = os.path.join(dataset_dir, 'sequences', '{:02d}'.format(seq_id))
         img_dir = os.path.join(seq_dir, 'image_2')
         N = len(glob(img_dir + '/*.png'))
-        frames = ['%.2d %.6d' % (seq_id, n) for n in range(N)]
 
         pose_file = os.path.join(pose_gt_dir, '{:02d}.txt'.format(seq_id))
+        pose_full_gt = []
         with open(pose_file, 'r') as f:
-            poses = f.readlines()
-        poses_gt = []
-        for pose in poses:
-            pose = np.array([float(s) for s in pose[:-1].split(' ')]).reshape((3, 4))
-            rot = np.linalg.inv(pose[:, :3])
-            tran = -np.dot(rot, pose[:, 3].transpose())
-            rz, ry, rx = mat2euler(rot)
-            poses_gt.append(tran.tolist() + [rx, ry, rz])
-        poses_gt = np.array(poses_gt)
+            for poseline in f:
+                pose = np.array([float(s) for s in poseline[:-1].split(' ')]).reshape((3, 4))
+                rot = np.linalg.inv(pose[:, :3])
+                tran = -np.dot(rot, pose[:, 3].transpose())
+                rz, ry, rx = mat2euler(rot)
+                pose_full_gt.append(tran.tolist() + [rx, ry, rz])
+        pose_full_gt = np.array(pose_full_gt)
 
-        half_offset = (seq_length - 1) // 2
-        pose_sequences = []
+        half_index = (seq_length - 1) // 2
+        pose_short_seqs = []
         for tgt_idx in range(N):
             # pad invalid range
-            if not self.is_valid_sample(frames, tgt_idx):
-                pose_sequences.append(0)
+            if tgt_idx < half_index or tgt_idx >= N - half_index:
+                pose_short_seqs.append(0)
                 continue
             # add short pose sequence
-            pred_poses = poses_gt[tgt_idx - half_offset:tgt_idx + half_offset + 1]
-            pose_seq = format_pose_seq_TUM(pred_poses)
-            pose_sequences.append(pose_seq)
-        return pose_sequences
+            pose_seq = pose_full_gt[tgt_idx - half_index:tgt_idx + half_index + 1]
+            pose_seq = format_pose_seq_TUM(pose_seq)
+            pose_short_seqs.append(pose_seq)
+        return pose_short_seqs
 
     # ========================================
     # after initialized, it feeds example one by one

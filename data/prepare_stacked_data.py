@@ -61,11 +61,13 @@ def dump_example(n, data_feeder, num_split):
         if not os.path.isdir(os.path.join(dump_dir, 'gt')):
             raise
 
-    dump_img_file = '{}/{}.jpg'.format(dump_dir, example['file_name'])
-    scipy.misc.imsave(dump_img_file, image_seq.astype(np.uint8))
+    # save stacked image
+    # dump_img_file = '{}/{}.jpg'.format(dump_dir, example['file_name'])
+    # scipy.misc.imsave(dump_img_file, image_seq.astype(np.uint8))
 
+    # save gt data
     if "odom" in opt.dataset_name:
-        dump_gt_file = '{}/gt/{}_gt.txt'.format(dump_dir, example['file_name'])
+        dump_gt_file = '{}/gt/{:06d}_gt.txt'.format(dump_dir, int(example['file_name'])-1)
         np.savetxt(dump_gt_file, gt, fmt='%.6f', delimiter=',')
     elif "eigen" in opt.dataset_name and gt is not None:
         dump_gt_file = '{}/gt/{}_gt.npy'.format(dump_dir, example['file_name'])
