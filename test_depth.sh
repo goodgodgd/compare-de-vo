@@ -9,5 +9,5 @@ python devo_bench_main.py \
 	--init_ckpt_file="$DEPTH_NET_MODEL/model" \
 	--checkpoint_dir="$DEPTH_NET_MODEL" \
 	--batch_size=1 \
-	--output_dir="$KITTI_EIGEN_PREDICT"
+	--output_dir="$PREDICT_OUTPUT"
 

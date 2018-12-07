@@ -3,7 +3,6 @@ import os
 import random
 import numpy as np
 import tensorflow as tf
-import scipy.io as sio
 
 from models.geonet.geonet_model import GeoNetModel
 from models.geonet.geonet_feeder import dataset_feeder
@@ -61,11 +60,11 @@ flags.DEFINE_integer("add_posenet",                  0,    "whether posenet is i
 opt = flags.FLAGS
 
 
-def save_pose_result(pose_seqs, output_root, dirname, frames):
-    if not os.path.isdir(os.path.join(output_root, dirname)):
+def save_pose_result(pose_seqs, output_root, modelname, frames):
+    if not os.path.isdir(os.path.join(output_root, modelname)):
         raise FileNotFoundError()
 
-    save_path = os.path.join(output_root, dirname, "pose")
+    save_path = os.path.join(output_root, modelname, "pose")
     sequences = []
     for i, (poseseq, frame) in enumerate(zip(pose_seqs, frames)):
         seq_id, frame_id = frame.split(" ")
@@ -78,6 +77,33 @@ def save_pose_result(pose_seqs, output_root, dirname, frames):
         filename = os.path.join(save_path, seq_id, "{:06d}.txt".format(int(frame_id)-half_seq))
         np.savetxt(filename, poseseq)
     print("pose results were saved!!")
+
+
+def save_gt_depths(depths, output_root):
+    if not os.path.isdir(output_root):
+        raise FileNotFoundError(output_root)
+
+    save_path = os.path.join(output_root, "ground_truth", "depth")
+    if not os.path.isdir(save_path):
+        os.makedirs(save_path)
+
+    for i, depth in enumerate(depths):
+        filename = os.path.join(save_path, "depth_gt_{:06d}".format(i))
+        np.save(filename, depth)
+
+
+def save_pred_depths(depths, output_root, modelname):
+    if not os.path.isdir(os.path.join(output_root, modelname)):
+        raise FileNotFoundError()
+
+    save_path = os.path.join(output_root, modelname, "depth")
+    if not os.path.isdir(save_path):
+        os.makedirs(save_path)
+
+    depths = np.concatenate(depths, axis=0)
+    filename = os.path.join(save_path, "depth_pred")
+    np.save(filename, depths)
+    print("predicted depths were saved!! shape=", depths.shape)
 
 
 def train():
@@ -160,17 +186,14 @@ def test_depth():
                 inputs = sess.run(dataset_iter)
                 pred = sess.run(fetches, feed_dict={tgt_image: inputs["target"]})
                 gt_depths.append(inputs["gt"])
-                pred_depths.append(pred["depth"])
+                pred_depths.append(np.squeeze(pred["depth"], 3))
             except tf.errors.OutOfRangeError:
                 print("dataset finished at step", i)
                 break
 
     print("depths shape (gt, pred)", gt_depths[0].shape, pred_depths[0].shape)
-    for i, (gt_depth, pred_depth) in enumerate(zip(gt_depths, pred_depths)):
-        filename = os.path.join(opt.output_dir, "gt_depth_{:05d}".format(i))
-        np.save(filename, gt_depth)
-        filename = os.path.join(opt.output_dir, "pred_depth_{:05d}".format(i))
-        np.save(filename, pred_depth)
+    save_gt_depths(gt_depths, opt.output_dir)
+    save_pred_depths(pred_depths, opt.output_dir, "geonet")
 
 
 def main(_):

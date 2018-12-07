@@ -9,5 +9,5 @@ python devo_bench_main.py \
 	--init_ckpt_file="$POSE_NET_MODEL/model" \
 	--checkpoint_dir="$POSE_NET_MODEL" \
 	--batch_size=32 \
-	--output_dir="$KITTI_ODOM_PREDICT"
+	--output_dir="$PREDICT_OUTPUT"
 
