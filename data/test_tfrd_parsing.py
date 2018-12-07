@@ -4,7 +4,7 @@ import tensorflow as tf
 
 module_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if module_path not in sys.path: sys.path.append(module_path)
-from models.geonet.geonet_feeder import dataset_feeder
+from data.tfrecord_feeder import dataset_feeder
 from models.geonet.geonet_model import GeoNetModel
 from model_operator import GeoNetOperator
 

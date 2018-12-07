@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 
 from models.geonet.geonet_model import GeoNetModel
-from models.geonet.geonet_feeder import dataset_feeder
+from data.tfrecord_feeder import dataset_feeder
 from model_operator import GeoNetOperator
 from constants import InputShape
 from data.kitti.pose_evaluation_utils import format_pose_seq_TUM
@@ -19,8 +19,8 @@ flags.DEFINE_string("tfrecords_dir",                "",    "tfrecords directory"
 flags.DEFINE_string("init_ckpt_file",             None,    "Specific checkpoint file to initialize from")
 flags.DEFINE_integer("batch_size",                   4,    "The size of of a sample batch")
 flags.DEFINE_integer("num_threads",                 32,    "Number of threads for data loading")
-# flags.DEFINE_integer("img_height",                 128,    "Image height")
-# flags.DEFINE_integer("img_width",                  416,    "Image width")
+flags.DEFINE_integer("img_height",                 128,    "Image height")
+flags.DEFINE_integer("img_width",                  416,    "Image width")
 flags.DEFINE_integer("seq_length",                   3,    "Sequence length for each example")
 
 # #### Training Configurations #####

@@ -1,6 +1,6 @@
 import os
 import sys
-from data.tfrd_feeder import *
+from data.stacked_data_feeder import *
 
 
 class TfrecordsMaker:
