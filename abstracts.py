@@ -7,10 +7,6 @@ class Model:
 		pass
 
 
-def data_feeder():
-	pass
-
-
 class DataLoader(object):
 	def __init__(self):
 		self.train_frames = []

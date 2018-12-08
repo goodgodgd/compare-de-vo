@@ -10,7 +10,7 @@ from model_operator import GeoNetOperator
 
 
 flags = tf.app.flags
-flags.DEFINE_string("mode",              "train_rigid",    "(train_rigid, train_flow) or (test_depth, test_pose, test_flow)")
+flags.DEFINE_string("mode",              "train_rigid",    "(train_rigid, train_flow) or (pred_depth, pred_pose, test_flow)")
 flags.DEFINE_string("dataset_dir",                  "",    "Dataset directory")
 flags.DEFINE_string("tfrecords_dir",                "",    "tfrecords directory")
 
@@ -56,9 +56,9 @@ def main(_):
     tf.enable_eager_execution()
     print("enable eager execution")
 
-    opt.mode = "test_depth"
+    opt.mode = "pred_depth"
 
-    if opt.mode == "test_pose":
+    if opt.mode == "pred_pose":
         opt.dataset_dir = "/home/ian/workplace/CompareDevo/geonet_data/kitti_odom"
         opt.tfrecords_dir = "/home/ian/workplace/CompareDevo/geonet_data/tfrecords/kitti_odom"
         opt.checkpoint_dir = "/home/ian/workplace/CompareDevo/ckpts/geonet_posenet"
@@ -66,7 +66,7 @@ def main(_):
         opt.seq_length = 5
         opt.num_source = 4
 
-    if opt.mode == "test_depth":
+    if opt.mode == "pred_depth":
         opt.dataset_dir = "/home/ian/workplace/CompareDevo/geonet_data/kitti_raw_eigen"
         opt.tfrecords_dir = "/home/ian/workplace/CompareDevo/geonet_data/tfrecords/kitti_raw_eigen"
         opt.checkpoint_dir = "/home/ian/workplace/CompareDevo/ckpts/geonet_depthnet"

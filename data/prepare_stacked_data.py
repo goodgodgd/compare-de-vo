@@ -61,8 +61,8 @@ def dump_example(n, data_feeder, num_split):
             raise
 
     # save stacked image
-    # dump_img_file = '{}/{}.jpg'.format(dump_dir, example['file_name'])
-    # scipy.misc.imsave(dump_img_file, image_seq.astype(np.uint8))
+    dump_img_file = '{}/{}.jpg'.format(dump_dir, example['file_name'])
+    scipy.misc.imsave(dump_img_file, image_seq.astype(np.uint8))
 
     # save gt data
     if "odom" in opt.dataset_name:
@@ -153,14 +153,14 @@ def main():
                                         img_width=opt.img_width,
                                         seq_length=opt.seq_length)
 
-    # def train_feeder(n):
-    #     return data_loader.get_train_example_with_idx(n)
-    # # save train/val data
-    # for n in range(data_loader.num_train):
-    #     dump_example(n, train_feeder, data_loader.num_train)
-    # # save train/val file list in the exactly same way with GeoNet
-    # write_train_frames()
-    # print("\nfinished writing train frames!!")
+    def train_feeder(n):
+        return data_loader.get_train_example_with_idx(n)
+    # save train/val data
+    for n in range(data_loader.num_train):
+        dump_example(n, train_feeder, data_loader.num_train)
+    # save train/val file list in the exactly same way with GeoNet
+    write_train_frames()
+    print("\nfinished writing train frames!!")
 
     # IMPORTANT! train/val data MUST be processed before test
 

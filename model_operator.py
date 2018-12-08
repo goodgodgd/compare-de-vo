@@ -60,7 +60,7 @@ class GeoNetOperator(ModelOperator):
         self.model.build_model(tgt_image, src_image_stack, intrinsics_ms)
 
         prediction = None
-        if self.opt.mode == "test_pose":
+        if self.opt.mode == "pred_pose":
             prediction = self.model.get_pose_pred()
         elif self.opt.mode == "test_eigen":
             prediction = self.model.get_depth_pred()

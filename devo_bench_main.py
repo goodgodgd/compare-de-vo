@@ -1,19 +1,10 @@
 # TODO: code reference
-import os
-import random
-import numpy as np
-import tensorflow as tf
-
-from models.geonet.geonet_model import GeoNetModel
-from data.tfrecord_feeder import dataset_feeder
-from model_operator import GeoNetOperator
-from constants import InputShape
-from data.kitti.pose_evaluation_utils import format_pose_seq_TUM
+from traintesteval import *
 
 
 flags = tf.app.flags
 flags.DEFINE_string("model",                        "",    "geonet or sfmlearner")
-flags.DEFINE_string("mode",                         "",    "(train_rigid, train_flow) or (test_depth, test_pose, test_flow)")
+flags.DEFINE_string("mode",                         "",    "(train_rigid, train_flow) or (pred_depth, pred_pose, test_flow)")
 flags.DEFINE_string("dataset_dir",                  "",    "Dataset directory")
 flags.DEFINE_string("tfrecords_dir",                "",    "tfrecords directory")
 flags.DEFINE_string("init_ckpt_file",             None,    "Specific checkpoint file to initialize from")
@@ -49,6 +40,9 @@ flags.DEFINE_float("flow_consistency_beta",       0.05,    "Beta for flow consis
 flags.DEFINE_string("output_dir",                 None,    "Test result output directory")
 flags.DEFINE_string("depth_test_split",        "eigen",    "KITTI depth split, eigen or stereo")
 
+# #### Evaluation Configurations #####
+flags.DEFINE_float("min_depth",                   1e-3,    "Threshold for minimum depth")
+flags.DEFINE_float("max_depth",                     80,    "Threshold for maximum depth")
 
 # #### Additional Configurations #####
 flags.DEFINE_integer("num_source",                   0,    "number of sources")
@@ -60,148 +54,12 @@ flags.DEFINE_integer("add_posenet",                  0,    "whether posenet is i
 opt = flags.FLAGS
 
 
-def save_pose_result(pose_seqs, output_root, modelname, frames):
-    if not os.path.isdir(os.path.join(output_root, modelname)):
-        raise FileNotFoundError()
-
-    save_path = os.path.join(output_root, modelname, "pose")
-    sequences = []
-    for i, (poseseq, frame) in enumerate(zip(pose_seqs, frames)):
-        seq_id, frame_id = frame.split(" ")
-        if seq_id not in sequences:
-            sequences.append(seq_id)
-            if not os.path.isdir(os.path.join(save_path, seq_id)):
-                os.makedirs(os.path.join(save_path, seq_id))
-
-        half_seq = (opt.seq_length - 1) // 2
-        filename = os.path.join(save_path, seq_id, "{:06d}.txt".format(int(frame_id)-half_seq))
-        np.savetxt(filename, poseseq)
-    print("pose results were saved!!")
-
-
-def save_gt_depths(depths, output_root):
-    if not os.path.isdir(output_root):
-        raise FileNotFoundError(output_root)
-
-    save_path = os.path.join(output_root, "ground_truth", "depth")
-    if not os.path.isdir(save_path):
-        os.makedirs(save_path)
-
-    for i, depth in enumerate(depths):
-        filename = os.path.join(save_path, "depth_gt_{:06d}".format(i))
-        np.save(filename, depth)
-
-
-def save_pred_depths(depths, output_root, modelname):
-    if not os.path.isdir(os.path.join(output_root, modelname)):
-        raise FileNotFoundError()
-
-    save_path = os.path.join(output_root, modelname, "depth")
-    if not os.path.isdir(save_path):
-        os.makedirs(save_path)
-
-    depths = np.concatenate(depths, axis=0)
-    filename = os.path.join(save_path, "depth_pred")
-    np.save(filename, depths)
-    print("predicted depths were saved!! shape=", depths.shape)
-
-
-def train():
-    set_random_seed()
-    if not os.path.exists(opt.checkpoint_dir):
-        os.makedirs(opt.checkpoint_dir)
-
-    def data_feeder():
-        return dataset_feeder(opt, "train", opt.seq_length)
-    geonet = GeoNetModel(opt)
-    model_op = GeoNetOperator(opt, geonet)
-    model_op.train(data_feeder)
-
-
-def set_random_seed():
-    seed = 8964
-    tf.set_random_seed(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-
-
-def test_pose():
-    geonet = GeoNetModel(opt)
-    input_uint8 = tf.placeholder(tf.uint8, [opt.batch_size, InputShape.HEIGHT, InputShape.WIDTH,
-                                            opt.seq_length * 3], name='raw_input')
-    tgt_image = input_uint8[:, :, :, :3]
-    src_image_stack = input_uint8[:, :, :, 3:]
-    geonet.build_model(tgt_image, src_image_stack, None)
-    fetches = {"pose": geonet.get_pose_pred()}
-    saver = tf.train.Saver([var for var in tf.model_variables()])
-    dataset_iter = dataset_feeder(opt, "test", opt.seq_length)
-
-    gt_poses = []
-    pred_poses = []
-    frames = []
-    target_ind = (opt.seq_length - 1)//2
-
-    with tf.Session() as sess:
-        saver.restore(sess, opt.init_ckpt_file)
-        for i in range(1000000):
-            try:
-                inputs = sess.run(dataset_iter)
-                pred = sess.run(fetches, feed_dict={tgt_image: inputs["target"],
-                                                    src_image_stack: inputs["sources"]})
-                frame_batch = [bytes(frame).decode("utf-8") for frame in inputs["frame_int8"]]
-                frames.extend(frame_batch)
-                gt_pose_batch = inputs["gt"]
-                pred_pose_batch = pred["pose"]
-                pred_pose_batch = np.insert(pred_pose_batch, target_ind, np.zeros((1, 6)), axis=1)
-                for b in range(opt.batch_size):
-                    pred_pose_tum = format_pose_seq_TUM(pred_pose_batch[b, :, :])
-                    pred_poses.append(pred_pose_tum)
-                    gt_poses.append(gt_pose_batch[b, :, :])
-            except tf.errors.OutOfRangeError:
-                print("dataset finished at step", i*opt.batch_size)
-                break
-
-    print("output length (gt, pred)", len(gt_poses), len(pred_poses))
-    # one can evaluate pose errors here but we save results and evaluate it in the next step
-    save_pose_result(pred_poses, opt.output_dir, "geonet", frames)
-
-
-def test_depth():
-    geonet = GeoNetModel(opt)
-    input_uint8 = tf.placeholder(tf.uint8, [opt.batch_size, InputShape.HEIGHT, InputShape.WIDTH,
-                                            opt.seq_length * 3], name='raw_input')
-    tgt_image = input_uint8[:, :, :, :3]
-    geonet.build_model(tgt_image, None, None)
-    fetches = {"depth": geonet.get_depth_pred()}
-    saver = tf.train.Saver([var for var in tf.model_variables()])
-    dataset_iter = dataset_feeder(opt, "test", opt.seq_length)
-
-    gt_depths = []
-    pred_depths = []
-
-    with tf.Session() as sess:
-        saver.restore(sess, opt.init_ckpt_file)
-        for i in range(1000000):
-            try:
-                inputs = sess.run(dataset_iter)
-                pred = sess.run(fetches, feed_dict={tgt_image: inputs["target"]})
-                gt_depths.append(inputs["gt"])
-                pred_depths.append(np.squeeze(pred["depth"], 3))
-            except tf.errors.OutOfRangeError:
-                print("dataset finished at step", i)
-                break
-
-    print("depths shape (gt, pred)", gt_depths[0].shape, pred_depths[0].shape)
-    save_gt_depths(gt_depths, opt.output_dir)
-    save_pred_depths(pred_depths, opt.output_dir, "geonet")
-
-
 def main(_):
     if opt.mode == "train_rigid":
         opt.seq_length = 3
-    elif opt.mode == "test_pose":
+    elif opt.mode == "pred_pose":
         opt.seq_length = 5
-    elif opt.mode == "test_depth":
+    elif opt.mode == "pred_depth":
         opt.seq_length = 1
         opt.batch_size = 1
     opt.num_source = opt.seq_length - 1
@@ -209,19 +67,23 @@ def main(_):
 
     opt.add_flownet = opt.mode in ['train_flow', 'test_flow']
     opt.add_dispnet = opt.add_flownet and opt.flownet_type == 'residual' \
-                      or opt.mode in ['train_rigid', 'test_depth']
+                      or opt.mode in ['train_rigid', 'pred_depth']
     opt.add_posenet = opt.add_flownet and opt.flownet_type == 'residual' \
-                      or opt.mode in ['train_rigid', 'test_pose']
+                      or opt.mode in ['train_rigid', 'pred_pose']
 
     print("important opts", "\ndataset", opt.dataset_dir, "\ntfrecord", opt.tfrecords_dir,
           "\ncheckpoint", opt.checkpoint_dir, "\nbatch", opt.batch_size)
 
     if opt.mode == 'train_rigid':
-        train()
-    elif opt.mode == 'test_depth':
-        test_depth()
-    elif opt.mode == 'test_pose':
-        test_pose()
+        train(opt)
+    elif opt.mode == 'pred_depth':
+        pred_depth(opt)
+    elif opt.mode == 'pred_pose':
+        pred_pose(opt)
+    elif opt.mode == 'eval_depth':
+        eval_depth(opt)
+    elif opt.mode == 'eval_pose':
+        eval_pose(opt)
 
 
 if __name__ == '__main__':

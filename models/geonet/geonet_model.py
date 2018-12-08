@@ -62,8 +62,8 @@ class GeoNetModel(object):
         opt = self.opt
 
         # build dispnet_inputs
-        if opt.mode == 'test_depth':
-            # for test_depth mode we only predict the depth of the target image
+        if opt.mode == 'pred_depth':
+            # for pred_depth mode we only predict the depth of the target image
             self.dispnet_inputs = self.tgt_image
         else:
             # multiple depth predictions; tgt: disp[:bs,:,:,:] src.i: disp[bs*(i+1):bs*(i+2),:,:,:]

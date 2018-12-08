@@ -27,8 +27,8 @@ then
 	echo "make_tfrecord_eigen : create tfrecord files from the results of prepare_kitti_eigen"
 	echo "make_tfrecord_odom : create tfrecord files from the results of prepare_kitti_odom"
 	echo "train_rigid : train pose and depth prediction model"
-	echo "test_depth : predict depths from test data and save them"
-	echo "test_pose : predict poses from test data and save them"
+	echo "pred_depth : predict depths from test data and save them"
+	echo "pred_pose : predict poses from test data and save them"
 
 elif [ "$1" == "prepare_paths" ]
 then
@@ -105,11 +105,10 @@ then
 		--batch_size=4 \
 		--train_epochs=50 
 
-
-elif [ "$1" == "test_depth" ]
+elif [ "$1" == "pred_depth" ]
 then
 	python devo_bench_main.py \
-		--mode="test_depth" \
+		--mode="pred_depth" \
 		--dataset_dir="$KITTI_EIGEN_STACKED" \
 		--tfrecords_dir="$KITTI_EIGEN_TFRECORD" \
 		--init_ckpt_file="$DEPTH_NET_MODEL/model" \
@@ -117,16 +116,29 @@ then
 		--batch_size=1 \
 		--output_dir="$PREDICT_OUTPUT"
 
-elif [ "$1" == "test_pose" ]
+elif [ "$1" == "pred_pose" ]
 then
 	python devo_bench_main.py \
-		--mode="test_pose" \
+		--mode="pred_pose" \
 		--dataset_dir="$KITTI_ODOM_STACKED" \
 		--tfrecords_dir="$KITTI_ODOM_TFRECORD" \
 		--init_ckpt_file="$POSE_NET_MODEL/model" \
 		--checkpoint_dir="$POSE_NET_MODEL" \
 		--batch_size=32 \
 		--output_dir="$PREDICT_OUTPUT"
+
+elif [ "$1" == "eval_depth" ]
+then
+	python devo_bench_main.py \
+		--mode="eval_depth" \
+		--output_dir="$PREDICT_OUTPUT"
+
+elif [ "$1" == "eval_pose" ]
+then
+	python devo_bench_main.py \
+		--mode="eval_pose" \
+		--output_dir="$PREDICT_OUTPUT"
+
 else
 	echo "invalid option"
 
