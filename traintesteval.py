@@ -202,10 +202,13 @@ def eval_pose(opt):
                     continue
 
                 assert (gt_short_seq.shape == (5, 8) and pred_short_seq.shape[1] == 8)
-                sseq_err = pu.compute_pose_error(gt_short_seq, pred_short_seq)
-                for pose_err in sseq_err:
-                    pose_errors_df = pose_errors_df.append(
-                        dict(zip(dfcols, [model, seq, i, pose_err[0], pose_err[1], pose_err[2]])),
-                        ignore_index=True)
+                try:
+                    sseq_err = pu.compute_pose_error(gt_short_seq, pred_short_seq)
+                    for pose_err in sseq_err:
+                        pose_errors_df = pose_errors_df.append(
+                            dict(zip(dfcols, [model, seq, i, pose_err[0], pose_err[1], pose_err[2]])),
+                            ignore_index=True)
+                except ValueError as ve:
+                    print(ve)
 
     print("pose errors {}\n".format(len(pose_errors_df)), pose_errors_df.head())

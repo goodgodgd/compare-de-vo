@@ -27,7 +27,8 @@ def save_pose_result(pose_seqs, output_root, modelname, frames, seq_length):
 
 
 def compute_pose_error(gt_sseq, pred_sseq):
-    gt_sseq, ali_inds = align_gt(gt_sseq, pred_sseq)
+    gt_sseq, pred_sseq, ali_inds = align_pose_seq(gt_sseq, pred_sseq)
+
     assert gt_sseq.shape == pred_sseq.shape, "after alignment, gt:{}, {} == pred:{}, {}"\
         .format(gt_sseq.shape[0], gt_sseq.shape[1], pred_sseq.shape[0], pred_sseq.shape[1])
     seq_len = gt_sseq.shape[0]
@@ -38,22 +39,38 @@ def compute_pose_error(gt_sseq, pred_sseq):
     return err_result
 
 
-def align_gt(gt_sseq, pred_sseq, max_diff=0.01):
+def align_pose_seq(gt_sseq, pred_sseq, max_diff=0.01):
     assert abs(gt_sseq[0, 0] - pred_sseq[0, 0]) < max_diff, \
         "different initial time: {}, {}".format(gt_sseq[0, 0], pred_sseq[0, 0])
-    gt_len = gt_sseq.shape[0]
-    pred_len = pred_sseq.shape[0]
-    aligned_gt = [gt_sseq[0]]
-    aligned_inds = [0]
 
-    for pi in range(1, pred_len):
-        for gi in range(pi, gt_len):
-            if abs(gt_sseq[gi, 0] - pred_sseq[pi, 0]) < max_diff:
-                aligned_gt.append(gt_sseq[gi])
-                aligned_inds.append(gi)
+    gt_times = gt_sseq[:, 0].tolist()
+    pred_times = pred_sseq[:, 0].tolist()
+    potential_matches = [(abs(gt - pt), gt, gi, pt, pi)
+                         for gi, gt in enumerate(gt_times)
+                         for pi, pt in enumerate(pred_times)
+                         if abs(gt - pt) < max_diff]
+    potential_matches.sort()
+    matches = []
+    aligned_inds = []
+    for diff, gt, gi, pt, pi in potential_matches:
+        if gt in gt_times and pt in pred_times:
+            gt_times.remove(gt)
+            pred_times.remove(pt)
+            matches.append((gi, pi))
+            aligned_inds.append(gi)
+    matches.sort()
 
+    if len(matches) < 2:
+        raise ValueError("aligned poses are {} from {}".format(len(matches), len(potential_matches)))
+
+    aligned_gt = []
+    aligned_pred = []
+    for gi, pi in matches:
+        aligned_gt.append(gt_sseq[gi])
+        aligned_pred.append(pred_sseq[pi])
     aligned_gt = np.array(aligned_gt)
-    return aligned_gt, aligned_inds
+    aligned_pred = np.array(aligned_pred)
+    return aligned_gt, aligned_pred, aligned_inds
 
 
 def pose_diff(gt_pose, pred_pose):
