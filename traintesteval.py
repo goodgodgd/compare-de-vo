@@ -11,7 +11,8 @@ from models.geonet.geonet_model import GeoNetModel
 from data.tfrecord_feeder import dataset_feeder
 from model_operator import GeoNetOperator
 from constants import InputShape
-from data.kitti.pose_evaluation_utils import format_pose_seq_TUM
+from data.kitti.kitti_pose_utils import save_pose_result, format_pose_seq_TUM, compute_pose_error
+from data.kitti.kitti_depth_utils import compute_depth_errors, save_gt_depths, save_pred_depths
 
 
 # ========== TRAIN ==========
@@ -64,7 +65,7 @@ def pred_pose(opt):
                 pred_pose_batch = pred["pose"]
                 pred_pose_batch = np.insert(pred_pose_batch, target_ind, np.zeros((1, 6)), axis=1)
                 for b in range(opt.batch_size):
-                    pred_pose_tum = format_pose_seq_TUM(pred_pose_batch[b, :, :])
+                    pred_pose_tum = format_pose_seq_TUM(pred_pose_batch[b, :, :], gt_pose_batch[b, :, 0])
                     pred_poses.append(pred_pose_tum)
                     gt_poses.append(gt_pose_batch[b, :, :])
             except tf.errors.OutOfRangeError:
@@ -74,25 +75,7 @@ def pred_pose(opt):
     print("output length (gt, pred)", len(gt_poses), len(pred_poses))
     # one can evaluate pose errors here but we save results and evaluate it in the evaluation step
     save_pose_result(pred_poses, opt.output_dir, "geonet", frames, opt.seq_length)
-
-
-def save_pose_result(pose_seqs, output_root, modelname, frames, seq_length):
-    if not os.path.isdir(os.path.join(output_root, modelname)):
-        raise FileNotFoundError()
-
-    save_path = os.path.join(output_root, modelname, "pose")
-    sequences = []
-    for i, (poseseq, frame) in enumerate(zip(pose_seqs, frames)):
-        seq_id, frame_id = frame.split(" ")
-        if seq_id not in sequences:
-            sequences.append(seq_id)
-            if not os.path.isdir(os.path.join(save_path, seq_id)):
-                os.makedirs(os.path.join(save_path, seq_id))
-
-        half_seq = (seq_length - 1) // 2
-        filename = os.path.join(save_path, seq_id, "{:06d}.txt".format(int(frame_id)-half_seq))
-        np.savetxt(filename, poseseq, fmt="%06f")
-    print("pose results were saved!!")
+    # save_pose_result(gt_poses, opt.output_dir, "ground_truth", frames, opt.seq_length)
 
 
 def pred_depth(opt):
@@ -123,33 +106,6 @@ def pred_depth(opt):
     print("depths shape (gt, pred)", gt_depths[0].shape, pred_depths[0].shape)
     save_gt_depths(gt_depths, opt.output_dir)
     save_pred_depths(pred_depths, opt.output_dir, "geonet")
-
-
-def save_gt_depths(depths, output_root):
-    if not os.path.isdir(output_root):
-        raise FileNotFoundError(output_root)
-
-    save_path = os.path.join(output_root, "ground_truth", "depth")
-    if not os.path.isdir(save_path):
-        os.makedirs(save_path)
-
-    for i, depth in enumerate(depths):
-        filename = os.path.join(save_path, "{:06d}".format(i))
-        np.save(filename, depth)
-
-
-def save_pred_depths(depths, output_root, modelname):
-    if not os.path.isdir(os.path.join(output_root, modelname)):
-        raise FileNotFoundError()
-
-    save_path = os.path.join(output_root, modelname, "depth")
-    if not os.path.isdir(save_path):
-        os.makedirs(save_path)
-
-    depths = np.concatenate(depths, axis=0)
-    filename = os.path.join(save_path, "kitti_eigen_depth_predictions")
-    np.save(filename, depths)
-    print("predicted depths were saved!! shape=", depths.shape)
 
 
 # ========== EVALUATION ==========
@@ -206,30 +162,13 @@ def evaluate_depth_errors(pred_depths, gt_files, min_depth, max_depth):
         predi_depth[predi_depth < min_depth] = min_depth
         predi_depth[predi_depth > max_depth] = max_depth
         abs_rel[i], sq_rel[i], rms[i], log_rms[i], a1[i], a2[i], a3[i] = \
-            compute_errors(gt_depth[mask], predi_depth[mask])
+            compute_depth_errors(gt_depth[mask], predi_depth[mask])
 
     print("{:>10}, {:>10}, {:>10}, {:>10}, {:>10}, {:>10}, {:>10}, {:>10}"
           .format('abs_rel', 'sq_rel', 'rms', 'log_rms', 'd1_all', 'a1', 'a2', 'a3'))
     print("{:10.4f}, {:10.4f}, {:10.4f}, {:10.4f}, {:10.4f}, {:10.4f}, {:10.4f}, {:10.4f}"
-          .format(abs_rel.mean(), sq_rel.mean(), rms.mean(), log_rms.mean(), d1_all.mean(), a1.mean(), a2.mean(), a3.mean()))
-
-
-def compute_errors(gt, pred):
-    thresh = np.maximum((gt / pred), (pred / gt))
-    a1 = (thresh < 1.25).mean()
-    a2 = (thresh < 1.25 ** 2).mean()
-    a3 = (thresh < 1.25 ** 3).mean()
-
-    rmse = (gt - pred) ** 2
-    rmse = np.sqrt(rmse.mean())
-
-    rmse_log = (np.log(gt) - np.log(pred)) ** 2
-    rmse_log = np.sqrt(rmse_log.mean())
-
-    abs_rel = np.mean(np.abs(gt - pred) / gt)
-    sq_rel = np.mean(((gt - pred)**2) / gt)
-
-    return abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3
+          .format(abs_rel.mean(), sq_rel.mean(), rms.mean(), log_rms.mean(), d1_all.mean(),
+                  a1.mean(), a2.mean(), a3.mean()))
 
 
 def eval_pose(opt):
@@ -239,7 +178,8 @@ def eval_pose(opt):
     model_names.remove(gt_dir)
     gt_path = os.path.join(opt.output_dir, gt_dir, "pose")
     pred_paths = {model: os.path.join(opt.output_dir, model, "pose") for model in model_names}
-    pose_err = dict()
+    dfcols = ["model", "seq", "index", "trn_err"]
+    pose_err = pd.DataFrame(columns=dfcols)
 
     for model, pred_path in pred_paths.items():
         if not os.path.isdir(os.path.join(gt_path, eval_seq[0])):
@@ -249,30 +189,20 @@ def eval_pose(opt):
         for seq in eval_seq:
             gt_files = glob.glob(os.path.join(gt_path, seq, "*.txt"))
             gt_files.sort()
-            seq_columns = ["gt_ind", "te".format(model, seq), "re".format(model, seq)]
-            seq_err = pd.DataFrame(columns=seq_columns)
 
             for i, gtfile in enumerate(gt_files):
                 predfile = gtfile.replace(gt_path, pred_path)
                 assert os.path.isfile(gtfile), "{} not found!!".format(gtfile)
                 if not os.path.isfile(predfile):
                     continue
+
                 gt_short_seq = np.loadtxt(gtfile)
                 pred_short_seq = np.loadtxt(predfile)
-                if pred_short_seq.shape != (5, 7) and pred_short_seq.shape != (5, 8):
-                    # print("empty file", pred_short_seq.shape)
+                if pred_short_seq.ndim < 2:
                     continue
-                te, re = compute_pose_error(gt_short_seq, pred_short_seq)
-                seq_err = seq_err.append(dict(zip(seq_columns, [i, te, re])), ignore_index=True)
-            seq_err = seq_err.reset_index(drop=True)
-            # merge seq_err into pose_err
-            pose_err["{}_{}".format(model, seq)] = seq_err
 
-    for model, df in pose_err.items():
-        print(model, df.head())
+                assert (gt_short_seq.shape == (5, 8) and pred_short_seq.shape[1] == 8)
+                te = compute_pose_error(gt_short_seq, pred_short_seq)
+                pose_err = pose_err.append(dict(zip(dfcols, [model, seq, i, te])), ignore_index=True)
 
-
-def compute_pose_error(gt_sseq, pred_sseq):
-    return 0, 0
-
-
+    print("pose errors {}\n".format(len(pose_err)), pose_err.head())

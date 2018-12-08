@@ -1,76 +1,66 @@
 # Some of the code are from the TUM evaluation toolkit:
 # https://vision.in.tum.de/data/datasets/rgbd-dataset/tools#absolute_trajectory_error_ate
+import os
 import math
 import numpy as np
 import functools
 
 
-def compute_ate(gtruth_file, pred_file):
-    gtruth_list = read_file_list(gtruth_file)
-    pred_list = read_file_list(pred_file)
+def save_pose_result(pose_seqs, output_root, modelname, frames, seq_length):
+    assert os.path.isdir(output_root), "[ERROR] dir not found: {}".format(output_root)
+    save_path = os.path.join(output_root, modelname, "pose")
+    if not os.path.isdir(save_path):
+        os.makedirs(save_path)
+
+    sequences = []
+    for i, (poseseq, frame) in enumerate(zip(pose_seqs, frames)):
+        seq_id, frame_id = frame.split(" ")
+        if seq_id not in sequences:
+            sequences.append(seq_id)
+            if not os.path.isdir(os.path.join(save_path, seq_id)):
+                os.makedirs(os.path.join(save_path, seq_id))
+
+        half_seq = (seq_length - 1) // 2
+        filename = os.path.join(save_path, seq_id, "{:06d}.txt".format(int(frame_id)-half_seq))
+        np.savetxt(filename, poseseq, fmt="%06f")
+    print("pose results were saved!!")
+
+
+def compute_pose_error(gt_sseq, pred_sseq):
+    gtruth_list = time_key_dict(gt_sseq)
+    pred_list = time_key_dict(pred_sseq)
     matches = associate(gtruth_list, pred_list, 0, 0.01)
     if len(matches) < 2:
         return False
 
-    gtruth_xyz = np.array([[float(value) for value in gtruth_list[a][0:3]] for a,b in matches])
-    pred_xyz = np.array([[float(value) for value in pred_list[b][0:3]] for a,b in matches])
-    
+    gtruth_xyz = np.array([[float(value) for value in gtruth_list[a][0:3]] for a, b in matches])
+    pred_xyz = np.array([[float(value) for value in pred_list[b][0:3]] for a, b in matches])
+
     # Make sure that the first matched frames align (no need for rotational alignment as
     # all the predicted/ground-truth snippets have been converted to use the same coordinate
     # system with the first frame of the snippet being the origin).
     offset = gtruth_xyz[0] - pred_xyz[0]
-    pred_xyz += offset[None,:]
+    pred_xyz += offset[None, :]
 
     # Optimize the scaling factor
-    scale = np.sum(gtruth_xyz * pred_xyz)/np.sum(pred_xyz ** 2)
+    scale = np.sum(gtruth_xyz * pred_xyz) / np.sum(pred_xyz ** 2)
     alignment_error = pred_xyz * scale - gtruth_xyz
-    rmse = np.sqrt(np.sum(alignment_error ** 2))/len(matches)
+    rmse = np.sqrt(np.sum(alignment_error ** 2)) / len(matches)
     return rmse
 
 
-def read_file_list(filename):
-    """
-    Reads a trajectory from a text file. 
-    
-    File format:
-    The file format is "stamp d1 d2 d3 ...", where stamp denotes the time stamp (to be matched)
-    and "d1 d2 d3.." is arbitary data (e.g., a 3D position and 3D orientation) associated to this timestamp. 
-    
-    Input:
-    filename -- File name
-    
-    Output:
-    dict -- dictionary of (stamp,data) tuples
-    
-    """
-    file = open(filename)
-    data = file.read()
-    lines = data.replace(","," ").replace("\t"," ").split("\n") 
-    list = [[v.strip() for v in line.split(" ") if v.strip()!=""] for line in lines if len(line)>0 and line[0]!="#"]
-    list = [(float(l[0]),l[1:]) for l in list if len(l)>1]
-    return dict(list)
+def time_key_dict(pose_seq):
+    seq_len = pose_seq.shape[0]
+    # dict {timestamp: pose}
+    return {pose_seq[i, 0]: pose_seq[i, 1:] for i in range(seq_len)}
 
 
-def associate(first_list, second_list,offset,max_difference):
-    """
-    Associate two dictionaries of (stamp,data). As the time stamps never match exactly, we aim 
-    to find the closest match for every input tuple.
-    
-    Input:
-    first_list -- first dictionary of (stamp,data) tuples
-    second_list -- second dictionary of (stamp,data) tuples
-    offset -- time offset between both dictionaries (e.g., to model the delay between the sensors)
-    max_difference -- search radius for candidate generation
-
-    Output:
-    matches -- list of matched tuples ((stamp1,data1),(stamp2,data2))
-    
-    """
+def associate(first_list, second_list, offset, max_difference):
     first_keys = list(first_list.keys())
     second_keys = list(second_list.keys())
-    potential_matches = [(abs(a - (b + offset)), a, b) 
-                         for a in first_keys 
-                         for b in second_keys 
+    potential_matches = [(abs(a - (b + offset)), a, b)
+                         for a in first_keys
+                         for b in second_keys
                          if abs(a - (b + offset)) < max_difference]
     potential_matches.sort()
     matches = []
@@ -79,7 +69,7 @@ def associate(first_list, second_list,offset,max_difference):
             first_keys.remove(a)
             second_keys.remove(b)
             matches.append((a, b))
-    
+
     matches.sort()
     return matches
 
@@ -377,22 +367,22 @@ def pose_vec_to_mat(vec):
     return Tmat
 
 
-def format_pose_seq_TUM(poses):
+def format_pose_seq_TUM(poses, times):
     if isinstance(poses, list):
-        tum_poses = format_pose_list(poses)
+        tum_poses = format_pose_list(poses, times)
     elif isinstance(poses, np.ndarray):
-        tum_poses = format_npy_array(poses)
+        tum_poses = format_npy_array(poses, times)
     else:
         tum_poses = None
     return tum_poses
 
 
-def format_pose_list(poses):
+def format_pose_list(poses, times):
     # poses: list of [tx, ty, tz, rx, ry, rz]
     pose_seq = []
     # First frame as the origin
     first_pose = pose_vec_to_mat(poses[0])
-    for pose in poses:
+    for pose, time in zip(poses, times):
         this_pose = pose_vec_to_mat(pose)
         # this_pose = np.dot(this_pose, np.linalg.inv(first_pose))
         this_pose = np.dot(first_pose, np.linalg.inv(this_pose))
@@ -401,15 +391,14 @@ def format_pose_list(poses):
         tz = this_pose[2, 3]
         rot = this_pose[:3, :3]
         qw, qx, qy, qz = rot2quat(rot)
-        pose = np.array([tx, ty, tz, qx, qy, qz, qw])
+        pose = np.array([time, tx, ty, tz, qx, qy, qz, qw])
         pose_seq.append(pose)
     pose_seq = np.array(pose_seq)
     return pose_seq
 
 
-def format_npy_array(poses):
+def format_npy_array(poses, times):
     pose_list = []
     for i in range(poses.shape[0]):
         pose_list.append(poses[i, :])
-    return format_pose_list(pose_list)
-
+    return format_pose_list(pose_list, times.tolist())

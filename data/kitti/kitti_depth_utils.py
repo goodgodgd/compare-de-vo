@@ -4,11 +4,11 @@ import numpy as np
 import os
 import cv2
 from collections import Counter
-import pickle
 
-def compute_errors(gt, pred):
+
+def compute_depth_errors(gt, pred):
     thresh = np.maximum((gt / pred), (pred / gt))
-    a1 = (thresh < 1.25   ).mean()
+    a1 = (thresh < 1.25).mean()
     a2 = (thresh < 1.25 ** 2).mean()
     a3 = (thresh < 1.25 ** 3).mean()
 
@@ -19,13 +19,40 @@ def compute_errors(gt, pred):
     rmse_log = np.sqrt(rmse_log.mean())
 
     abs_rel = np.mean(np.abs(gt - pred) / gt)
-
     sq_rel = np.mean(((gt - pred)**2) / gt)
 
     return abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3
 
+
+def save_gt_depths(depths, output_root):
+    if not os.path.isdir(output_root):
+        raise FileNotFoundError(output_root)
+
+    save_path = os.path.join(output_root, "ground_truth", "depth")
+    if not os.path.isdir(save_path):
+        os.makedirs(save_path)
+
+    for i, depth in enumerate(depths):
+        filename = os.path.join(save_path, "{:06d}".format(i))
+        np.save(filename, depth)
+
+
+def save_pred_depths(depths, output_root, modelname):
+    if not os.path.isdir(os.path.join(output_root, modelname)):
+        raise FileNotFoundError()
+
+    save_path = os.path.join(output_root, modelname, "depth")
+    if not os.path.isdir(save_path):
+        os.makedirs(save_path)
+
+    depths = np.concatenate(depths, axis=0)
+    filename = os.path.join(save_path, "kitti_eigen_depth_predictions")
+    np.save(filename, depths)
+    print("predicted depths were saved!! shape=", depths.shape)
+
+
 ###############################################################################
-#######################  KITTI
+# KITTI
 
 width_to_focal = dict()
 width_to_focal[1242] = 721.5377
@@ -66,7 +93,7 @@ def convert_disps_to_depths_kitti(gt_disparities, pred_disparities):
 
 
 ###############################################################################
-#######################  EIGEN
+# EIGEN
 
 def read_text_lines(file_path):
     f = open(file_path, 'r')
@@ -142,25 +169,6 @@ def read_calib_file(path):
                     # casting error: data[key] already eq. value, so pass
                     pass
     return data
-
-
-def get_focal_length_baseline(calib_dir, cam=2):
-    cam2cam = read_calib_file(os.path.join(calib_dir + 'calib_cam_to_cam.txt'))
-    P2_rect = cam2cam['P_rect_02'].reshape(3,4)
-    P3_rect = cam2cam['P_rect_03'].reshape(3,4)
-
-    # cam 2 is left of camera 0  -6cm
-    # cam 3 is to the right  +54cm
-    b2 = P2_rect[0,3] / -P2_rect[0,0]
-    b3 = P3_rect[0,3] / -P3_rect[0,0]
-    baseline = b3-b2
-
-    if cam == 2:
-        focal_length = P2_rect[0, 0]
-    elif cam == 3:
-        focal_length = P3_rect[0, 0]
-
-    return focal_length, baseline
 
 
 def sub2ind(matrixSize, rowSub, colSub):

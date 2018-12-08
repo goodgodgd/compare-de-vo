@@ -42,12 +42,10 @@ then
 		exit 0
 	fi
 	
-	mkdir -p "$KITTI_ODOM_RAW"
 	mkdir -p "$KITTI_ODOM_STACKED"
 	mkdir -p "$KITTI_ODOM_TFRECORD"
 	mkdir -p "$POSE_NET_MODEL"
 
-	mkdir -p "$KITTI_EIGEN_RAW"
 	mkdir -p "$KITTI_EIGEN_STACKED"
 	mkdir -p "$KITTI_EIGEN_TFRECORD"
 	mkdir -p "$DEPTH_NET_MODEL"
@@ -61,6 +59,7 @@ then
 		--dataset_name=kitti_raw_eigen \
 		--dump_root="$KITTI_EIGEN_STACKED" \
 		--seq_length=3 \
+		--split="all" \
 		--img_height=128 \
 		--img_width=416 \
 		--num_threads=8 \
@@ -73,6 +72,7 @@ then
 		--dataset_name=kitti_odom \
 		--dump_root="$KITTI_ODOM_STACKED" \
 		--seq_length=5 \
+		--split="test" \
 		--img_height=128 \
 		--img_width=416 \
 		--num_threads=8 \
@@ -140,7 +140,7 @@ then
 		--output_dir="$PREDICT_OUTPUT"
 
 else
-	echo "invalid option"
+	echo "invalid option, please type ./devo-executer.sh --help"
 
 fi
 

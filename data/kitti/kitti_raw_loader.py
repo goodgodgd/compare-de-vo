@@ -9,8 +9,8 @@ import scipy.misc
 module_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if module_path not in sys.path: sys.path.append(module_path)
 from abstracts import DataLoader
-from data.kitti.depth_evaluation_utils import generate_depth_map
-from data.kitti.data_loader_utils import read_intrinsics_raw, read_file_data, scale_intrinsics
+from data.kitti.kitti_depth_utils import generate_depth_map
+from data.kitti.kitti_intrin_utils import read_intrinsics_raw, read_file_data, scale_intrinsics
 
 
 class KittiRawLoader(DataLoader):

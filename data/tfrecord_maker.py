@@ -110,16 +110,14 @@ class KittiTfrdMaker(TfrecordsMaker):
 
         with open(list_file, 'r') as f:
             for line in f:
-                paths = line.split(" ")
-                seq_dir = paths[0]
-                frame_id = paths[1][:-1]
-
-                frames.append(line[:-1])
+                seq_dir, frame_id = line.rstrip().split(" ")
+                frames.append(line.rstrip())
                 imgfile = os.path.join(dataset_root, seq_dir, frame_id+".jpg")
                 image_files.append(imgfile)
                 gtfile = os.path.join(dataset_root, seq_dir, "gt", frame_id + "_gt.txt")
                 if not os.path.isfile(gtfile):
                     gtfile = os.path.join(dataset_root, seq_dir, "gt", frame_id + "_gt.npy")
+                assert os.path.isfile(gtfile), "[ERROR], gt file not found: {}".format(gtfile[:-4])
                 gt_files.append(gtfile)
                 camfile = os.path.join(dataset_root, seq_dir, "intrinsics.txt")
                 cam_files.append(camfile)

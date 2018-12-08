@@ -9,8 +9,8 @@ import scipy.misc
 module_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if module_path not in sys.path: sys.path.append(module_path)
 from abstracts import DataLoader
-from data.kitti.pose_evaluation_utils import mat2euler, format_pose_seq_TUM
-from data.kitti.data_loader_utils import read_odom_calib_file, scale_intrinsics
+from data.kitti.kitti_pose_utils import mat2euler, format_pose_seq_TUM
+from data.kitti.kitti_intrin_utils import read_odom_calib_file, scale_intrinsics
 
 
 class KittiOdomLoader(DataLoader):
@@ -62,32 +62,39 @@ class KittiOdomLoader(DataLoader):
 
     @staticmethod
     def generate_pose_snippets(dataset_dir, seq_id, seq_length):
-        pose_gt_dir = os.path.join(dataset_dir, 'poses')
-        seq_dir = os.path.join(dataset_dir, 'sequences', '{:02d}'.format(seq_id))
-        img_dir = os.path.join(seq_dir, 'image_2')
-        N = len(glob(img_dir + '/*.png'))
-
-        pose_file = os.path.join(pose_gt_dir, '{:02d}.txt'.format(seq_id))
+        pose_file = os.path.join(dataset_dir, 'poses', '{:02d}.txt'.format(seq_id))
         pose_full_gt = []
-        with open(pose_file, 'r') as f:
-            for poseline in f:
-                pose = np.array([float(s) for s in poseline[:-1].split(' ')]).reshape((3, 4))
+        with open(pose_file, 'r') as pf:
+            for poseline in pf:
+                pose = np.array([float(s) for s in poseline.rstrip().split(' ')]).reshape((3, 4))
                 rot = np.linalg.inv(pose[:, :3])
                 tran = -np.dot(rot, pose[:, 3].transpose())
                 rz, ry, rx = mat2euler(rot)
                 pose_full_gt.append(tran.tolist() + [rx, ry, rz])
         pose_full_gt = np.array(pose_full_gt)
+        full_seq_length, posesz = pose_full_gt.shape
+        assert posesz == 6
+
+        time_file = os.path.join(dataset_dir, 'sequences', '{:02d}'.format(seq_id), 'times.txt')
+        with open(time_file, 'r') as tf:
+            time_stamps = tf.readlines()
+            time_stamps = [float(time.rstrip()) for time in time_stamps]
+        assert len(time_stamps) == full_seq_length, \
+            "len(poses) != len(times), {} != {}".format(len(time_stamps), full_seq_length)
 
         half_index = (seq_length - 1) // 2
         pose_short_seqs = []
-        for tgt_idx in range(N):
+        for tgt_idx in range(full_seq_length):
             # pad invalid range
-            if tgt_idx < half_index or tgt_idx >= N - half_index:
+            if tgt_idx < half_index or tgt_idx >= full_seq_length - half_index:
                 pose_short_seqs.append(0)
                 continue
             # add short pose sequence
             pose_seq = pose_full_gt[tgt_idx - half_index:tgt_idx + half_index + 1]
-            pose_seq = format_pose_seq_TUM(pose_seq)
+            time_seq = time_stamps[tgt_idx - half_index:tgt_idx + half_index + 1]
+            pose_seq = format_pose_seq_TUM(pose_seq, time_seq)
+            assert pose_seq.shape == (5, 8), "pose_seq shape: {}, {}"\
+                .format(pose_seq.shape[0], pose_seq.shape[1])
             pose_short_seqs.append(pose_seq)
         return pose_short_seqs
 

@@ -93,7 +93,7 @@ class TextFeeder(FileFeeder):
 
     @staticmethod
     def read_file(filename):
-        text = np.loadtxt(filename, delimiter=',')
+        text = np.loadtxt(filename)
         return text
 
 
