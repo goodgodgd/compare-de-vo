@@ -27,51 +27,51 @@ def save_pose_result(pose_seqs, output_root, modelname, frames, seq_length):
 
 
 def compute_pose_error(gt_sseq, pred_sseq):
-    gtruth_list = time_key_dict(gt_sseq)
-    pred_list = time_key_dict(pred_sseq)
-    matches = associate(gtruth_list, pred_list, 0, 0.01)
-    if len(matches) < 2:
-        return False
+    gt_sseq, ali_inds = align_gt(gt_sseq, pred_sseq)
+    assert gt_sseq.shape == pred_sseq.shape, "after alignment, gt:{}, {} == pred:{}, {}"\
+        .format(gt_sseq.shape[0], gt_sseq.shape[1], pred_sseq.shape[0], pred_sseq.shape[1])
+    seq_len = gt_sseq.shape[0]
+    err_result = []
+    for si in range(1, seq_len):
+        te, re = pose_diff(gt_sseq[si], pred_sseq[si])
+        err_result.append([ali_inds[si], te, re])
+    return err_result
 
-    gtruth_xyz = np.array([[float(value) for value in gtruth_list[a][0:3]] for a, b in matches])
-    pred_xyz = np.array([[float(value) for value in pred_list[b][0:3]] for a, b in matches])
 
-    # Make sure that the first matched frames align (no need for rotational alignment as
-    # all the predicted/ground-truth snippets have been converted to use the same coordinate
-    # system with the first frame of the snippet being the origin).
-    offset = gtruth_xyz[0] - pred_xyz[0]
-    pred_xyz += offset[None, :]
+def align_gt(gt_sseq, pred_sseq, max_diff=0.01):
+    assert abs(gt_sseq[0, 0] - pred_sseq[0, 0]) < max_diff, \
+        "different initial time: {}, {}".format(gt_sseq[0, 0], pred_sseq[0, 0])
+    gt_len = gt_sseq.shape[0]
+    pred_len = pred_sseq.shape[0]
+    aligned_gt = [gt_sseq[0]]
+    aligned_inds = [0]
 
+    for pi in range(1, pred_len):
+        for gi in range(pi, gt_len):
+            if abs(gt_sseq[gi, 0] - pred_sseq[pi, 0]) < max_diff:
+                aligned_gt.append(gt_sseq[gi])
+                aligned_inds.append(gi)
+
+    aligned_gt = np.array(aligned_gt)
+    return aligned_gt, aligned_inds
+
+
+def pose_diff(gt_pose, pred_pose):
     # Optimize the scaling factor
-    scale = np.sum(gtruth_xyz * pred_xyz) / np.sum(pred_xyz ** 2)
-    alignment_error = pred_xyz * scale - gtruth_xyz
-    rmse = np.sqrt(np.sum(alignment_error ** 2)) / len(matches)
-    return rmse
-
-
-def time_key_dict(pose_seq):
-    seq_len = pose_seq.shape[0]
-    # dict {timestamp: pose}
-    return {pose_seq[i, 0]: pose_seq[i, 1:] for i in range(seq_len)}
-
-
-def associate(first_list, second_list, offset, max_difference):
-    first_keys = list(first_list.keys())
-    second_keys = list(second_list.keys())
-    potential_matches = [(abs(a - (b + offset)), a, b)
-                         for a in first_keys
-                         for b in second_keys
-                         if abs(a - (b + offset)) < max_difference]
-    potential_matches.sort()
-    matches = []
-    for diff, a, b in potential_matches:
-        if a in first_keys and b in second_keys:
-            first_keys.remove(a)
-            second_keys.remove(b)
-            matches.append((a, b))
-
-    matches.sort()
-    return matches
+    assert np.sum(pred_pose[1:4] ** 2) > 0.00001, \
+        "invalid scale division {}".format(np.sum(pred_pose[1:4] ** 2))
+    scale = np.sum(gt_pose[1:4] * pred_pose[1:4]) / np.sum(pred_pose[1:4] ** 2)
+    # translational error
+    alignment_error = pred_pose[1:4] * scale - gt_pose[1:4]
+    trn_rmse = np.sqrt(np.sum(alignment_error ** 2))
+    # rotation matrices
+    gt_rmat = quat2mat(gt_pose[4:])
+    pred_rmat = quat2mat(pred_pose[4:])
+    # relative rotation
+    rel_rmat = np.matmul(np.transpose(gt_rmat), pred_rmat)
+    rel_quat = rot2quat(rel_rmat)
+    rot_diff = abs(np.arccos(rel_quat[0]))
+    return trn_rmse, rot_diff
 
 
 def rot2quat(R):

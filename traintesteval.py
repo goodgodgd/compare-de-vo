@@ -11,8 +11,8 @@ from models.geonet.geonet_model import GeoNetModel
 from data.tfrecord_feeder import dataset_feeder
 from model_operator import GeoNetOperator
 from constants import InputShape
-from data.kitti.kitti_pose_utils import save_pose_result, format_pose_seq_TUM, compute_pose_error
-from data.kitti.kitti_depth_utils import compute_depth_errors, save_gt_depths, save_pred_depths
+import data.kitti.kitti_pose_utils as pu
+import data.kitti.kitti_depth_utils as du
 
 
 # ========== TRAIN ==========
@@ -65,7 +65,7 @@ def pred_pose(opt):
                 pred_pose_batch = pred["pose"]
                 pred_pose_batch = np.insert(pred_pose_batch, target_ind, np.zeros((1, 6)), axis=1)
                 for b in range(opt.batch_size):
-                    pred_pose_tum = format_pose_seq_TUM(pred_pose_batch[b, :, :], gt_pose_batch[b, :, 0])
+                    pred_pose_tum = pu.format_pose_seq_TUM(pred_pose_batch[b, :, :], gt_pose_batch[b, :, 0])
                     pred_poses.append(pred_pose_tum)
                     gt_poses.append(gt_pose_batch[b, :, :])
             except tf.errors.OutOfRangeError:
@@ -74,7 +74,7 @@ def pred_pose(opt):
 
     print("output length (gt, pred)", len(gt_poses), len(pred_poses))
     # one can evaluate pose errors here but we save results and evaluate it in the evaluation step
-    save_pose_result(pred_poses, opt.output_dir, "geonet", frames, opt.seq_length)
+    pu.save_pose_result(pred_poses, opt.output_dir, "geonet", frames, opt.seq_length)
     # save_pose_result(gt_poses, opt.output_dir, "ground_truth", frames, opt.seq_length)
 
 
@@ -104,8 +104,8 @@ def pred_depth(opt):
                 break
 
     print("depths shape (gt, pred)", gt_depths[0].shape, pred_depths[0].shape)
-    save_gt_depths(gt_depths, opt.output_dir)
-    save_pred_depths(pred_depths, opt.output_dir, "geonet")
+    du.save_gt_depths(gt_depths, opt.output_dir)
+    du.save_pred_depths(pred_depths, opt.output_dir, "geonet")
 
 
 # ========== EVALUATION ==========
@@ -162,7 +162,7 @@ def evaluate_depth_errors(pred_depths, gt_files, min_depth, max_depth):
         predi_depth[predi_depth < min_depth] = min_depth
         predi_depth[predi_depth > max_depth] = max_depth
         abs_rel[i], sq_rel[i], rms[i], log_rms[i], a1[i], a2[i], a3[i] = \
-            compute_depth_errors(gt_depth[mask], predi_depth[mask])
+            du.compute_depth_errors(gt_depth[mask], predi_depth[mask])
 
     print("{:>10}, {:>10}, {:>10}, {:>10}, {:>10}, {:>10}, {:>10}, {:>10}"
           .format('abs_rel', 'sq_rel', 'rms', 'log_rms', 'd1_all', 'a1', 'a2', 'a3'))
@@ -178,8 +178,8 @@ def eval_pose(opt):
     model_names.remove(gt_dir)
     gt_path = os.path.join(opt.output_dir, gt_dir, "pose")
     pred_paths = {model: os.path.join(opt.output_dir, model, "pose") for model in model_names}
-    dfcols = ["model", "seq", "index", "trn_err"]
-    pose_err = pd.DataFrame(columns=dfcols)
+    dfcols = ["model", "seq", "subseq_begin", "subseq_index", "trn_err", "rot_err"]
+    pose_errors_df = pd.DataFrame(columns=dfcols)
 
     for model, pred_path in pred_paths.items():
         if not os.path.isdir(os.path.join(gt_path, eval_seq[0])):
@@ -198,11 +198,14 @@ def eval_pose(opt):
 
                 gt_short_seq = np.loadtxt(gtfile)
                 pred_short_seq = np.loadtxt(predfile)
-                if pred_short_seq.ndim < 2:
+                if pred_short_seq.ndim < 2 or abs(gt_short_seq[0, 0] - pred_short_seq[0, 0]) > 0.01:
                     continue
 
                 assert (gt_short_seq.shape == (5, 8) and pred_short_seq.shape[1] == 8)
-                te = compute_pose_error(gt_short_seq, pred_short_seq)
-                pose_err = pose_err.append(dict(zip(dfcols, [model, seq, i, te])), ignore_index=True)
+                sseq_err = pu.compute_pose_error(gt_short_seq, pred_short_seq)
+                for pose_err in sseq_err:
+                    pose_errors_df = pose_errors_df.append(
+                        dict(zip(dfcols, [model, seq, i, pose_err[0], pose_err[1], pose_err[2]])),
+                        ignore_index=True)
 
-    print("pose errors {}\n".format(len(pose_err)), pose_err.head())
+    print("pose errors {}\n".format(len(pose_errors_df)), pose_errors_df.head())
