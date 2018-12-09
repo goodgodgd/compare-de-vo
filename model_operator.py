@@ -26,6 +26,7 @@ class ModelOperator:
         self.estimator.train(input_fn=data_feeder, hooks=logging_hook)
         print("training finished")
 
+    # TODO: TRAIN and EVAL modes are Not tested
     def evaluate(self, data_feeder, show_log: bool=False):
         # evaluate the model
         logging_hook = self._get_logging_hook(show_log)
@@ -49,8 +50,8 @@ class ModelOperator:
 
 
 class GeoNetOperator(ModelOperator):
-    def __init__(self, opt, _model_builder):
-        super().__init__(opt, _model_builder)
+    def __init__(self, opt, model):
+        super().__init__(opt, model)
 
     def _cnn_model_fn(self, features, mode):
         src_image_stack = features["sources"]
@@ -71,6 +72,7 @@ class GeoNetOperator(ModelOperator):
         if mode == tf.estimator.ModeKeys.PREDICT:
             return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
+        # TODO: TRAIN and EVAL modes are Not tested
         if mode == tf.estimator.ModeKeys.TRAIN:
             # define training operation
             optimizer = tf.train.AdamOptimizer(self.opt.learning_rate, 0.9)

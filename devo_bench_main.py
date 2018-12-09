@@ -1,12 +1,14 @@
 # TODO: code reference
 from traintesteval import *
+from models.geonet.geonet_model import GeoNetModel
+from model_operator import GeoNetOperator
 
 
 flags = tf.app.flags
-flags.DEFINE_string("model",                        "",    "geonet or sfmlearner")
 flags.DEFINE_string("mode",                         "",    "(train_rigid, train_flow) or (pred_depth, pred_pose, test_flow)")
-flags.DEFINE_string("dataset_dir",                  "",    "Dataset directory")
+flags.DEFINE_string("model_name",                   "",    "geonet or sfmlearner")
 flags.DEFINE_string("tfrecords_dir",                "",    "tfrecords directory")
+flags.DEFINE_string("eval_out_dir",                 "",    "evaluation result directory")
 flags.DEFINE_string("init_ckpt_file",             None,    "Specific checkpoint file to initialize from")
 flags.DEFINE_integer("batch_size",                   4,    "The size of of a sample batch")
 flags.DEFINE_integer("num_threads",                 32,    "Number of threads for data loading")
@@ -19,8 +21,8 @@ flags.DEFINE_string("checkpoint_dir",               "",    "Directory name to sa
 flags.DEFINE_float("learning_rate",             0.0002,    "Learning rate for adam")
 flags.DEFINE_integer("max_to_keep",                 20,    "Maximum number of checkpoints to save")
 flags.DEFINE_integer("train_epochs",                50,    "number of epochs for training")
-# flags.DEFINE_integer("save_ckpt_freq",          5000,    "Save the checkpoint model every save_ckpt_freq iterations")
 flags.DEFINE_float("alpha_recon_image",           0.85,    "Alpha weight between SSIM and L1 in reconstruction loss")
+flags.DEFINE_integer("save_ckpt_freq",            5000,    "Save the checkpoint model every save_ckpt_freq iterations")
 
 # #### Configurations about DepthNet & PoseNet of GeoNet #####
 flags.DEFINE_string("dispnet_encoder",      "resnet50",    "Type of encoder for dispnet, vgg or resnet50")
@@ -37,7 +39,7 @@ flags.DEFINE_float("flow_consistency_alpha",       3.0,    "Alpha for flow consi
 flags.DEFINE_float("flow_consistency_beta",       0.05,    "Beta for flow consistency check")
 
 # #### Testing Configurations #####
-flags.DEFINE_string("output_dir",                 None,    "Test result output directory")
+flags.DEFINE_string("pred_out_dir",                 None,    "Test result output directory")
 flags.DEFINE_string("depth_test_split",        "eigen",    "KITTI depth split, eigen or stereo")
 
 # #### Evaluation Configurations #####
@@ -55,6 +57,7 @@ opt = flags.FLAGS
 
 
 def main(_):
+    # set subordinative variables
     if opt.mode == "train_rigid":
         opt.seq_length = 3
     elif opt.mode == "pred_pose":
@@ -71,15 +74,22 @@ def main(_):
     opt.add_posenet = opt.add_flownet and opt.flownet_type == 'residual' \
                       or opt.mode in ['train_rigid', 'pred_pose']
 
-    print("important opts", "\ndataset", opt.dataset_dir, "\ntfrecord", opt.tfrecords_dir,
+    print("important opts", "\ntfrecord", opt.tfrecords_dir,
           "\ncheckpoint", opt.checkpoint_dir, "\nbatch", opt.batch_size)
 
+    # set model class and model operator
+    net_model = None
+    if opt.mode in ['trian_rigid', 'pred_depth', 'pred_pose']:
+        if opt.model_name == "geonet":
+            net_model = GeoNetModel(opt)
+    model_op = GeoNetOperator(opt, net_model) if opt.model_name == "geonet" else None
+
     if opt.mode == 'train_rigid':
-        train(opt)
+        train(opt, model_op)
     elif opt.mode == 'pred_depth':
-        pred_depth(opt)
+        pred_depth(opt, net_model)
     elif opt.mode == 'pred_pose':
-        pred_pose(opt)
+        pred_pose(opt, net_model)
     elif opt.mode == 'eval_depth':
         eval_depth(opt)
     elif opt.mode == 'eval_pose':

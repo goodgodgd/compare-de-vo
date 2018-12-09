@@ -36,6 +36,7 @@ def compute_pose_error(gt_sseq, pred_sseq):
     for si in range(1, seq_len):
         te, re = pose_diff(gt_sseq[si], pred_sseq[si])
         err_result.append([ali_inds[si], te, re])
+        assert ali_inds[si] > 0, "{} {}".format(si, ali_inds)
     return err_result
 
 
@@ -51,14 +52,13 @@ def align_pose_seq(gt_sseq, pred_sseq, max_diff=0.01):
                          if abs(gt - pt) < max_diff]
     potential_matches.sort()
     matches = []
-    aligned_inds = []
     for diff, gt, gi, pt, pi in potential_matches:
         if gt in gt_times and pt in pred_times:
             gt_times.remove(gt)
             pred_times.remove(pt)
             matches.append((gi, pi))
-            aligned_inds.append(gi)
     matches.sort()
+    aligned_inds = [gi for gi, pi in matches]
 
     if len(matches) < 2:
         raise ValueError("aligned poses are {} from {}".format(len(matches), len(potential_matches)))
@@ -388,6 +388,8 @@ def format_pose_seq_TUM(poses, times):
     if isinstance(poses, list):
         tum_poses = format_pose_list(poses, times)
     elif isinstance(poses, np.ndarray):
+        if not isinstance(times, np.ndarray):
+            times = np.array(times)
         tum_poses = format_npy_array(poses, times)
     else:
         tum_poses = None

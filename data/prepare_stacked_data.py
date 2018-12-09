@@ -11,7 +11,7 @@ module_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if module_path not in sys.path: sys.path.append(module_path)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dataset_dir",   type=str, required=True, help="where the dataset is stored")
+parser.add_argument("--raw_dataset_dir",   type=str, required=True, help="where the dataset is stored")
 parser.add_argument("--dataset_name",  type=str, required=True, choices=["kitti_raw_eigen", "kitti_raw_stereo", "kitti_odom", "cityscapes"])
 parser.add_argument("--dump_root",     type=str, required=True, help="where to dump the data")
 parser.add_argument("--seq_length",    type=int, required=True, help="length of each training sequence")
@@ -124,14 +124,14 @@ def main():
 
     if opt.dataset_name == 'kitti_odom':
         from data.kitti.kitti_odom_loader import KittiOdomLoader
-        data_loader = KittiOdomLoader(opt.dataset_dir,
+        data_loader = KittiOdomLoader(opt.raw_dataset_dir,
                                       img_height=opt.img_height,
                                       img_width=opt.img_width,
                                       seq_length=opt.seq_length)
 
     if opt.dataset_name == 'kitti_raw_eigen':
         from data.kitti.kitti_raw_loader import KittiRawLoader
-        data_loader = KittiRawLoader(opt.dataset_dir,
+        data_loader = KittiRawLoader(opt.raw_dataset_dir,
                                      split='eigen',
                                      img_height=opt.img_height,
                                      img_width=opt.img_width,
@@ -140,7 +140,7 @@ def main():
 
     if opt.dataset_name == 'kitti_raw_stereo':
         from data.kitti.kitti_raw_loader import KittiRawLoader
-        data_loader = KittiRawLoader(opt.dataset_dir,
+        data_loader = KittiRawLoader(opt.raw_dataset_dir,
                                      split='stereo',
                                      img_height=opt.img_height,
                                      img_width=opt.img_width,
@@ -149,7 +149,7 @@ def main():
 
     if opt.dataset_name == 'cityscapes':
         from data.cityscapes.cityscapes_loader import cityscapes_loader
-        data_loader = cityscapes_loader(opt.dataset_dir,
+        data_loader = cityscapes_loader(opt.raw_dataset_dir,
                                         img_height=opt.img_height,
                                         img_width=opt.img_width,
                                         seq_length=opt.seq_length)

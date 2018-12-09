@@ -1,13 +1,19 @@
 
-class Model:
-	def build_layer(self):
-		pass
+class ModelBase:
+	def build_model(self, tgt_image, src_image_stack, intrinsics):
+		raise NotImplementedError()
 
-	def loss(self):
-		pass
+	def get_pose_pred(self):
+		raise NotImplementedError()
+
+	def get_depth_pred(self):
+		raise NotImplementedError()
+
+	def get_loss(self):
+		raise NotImplementedError()
 
 
-class DataLoader(object):
+class DataLoader:
 	def __init__(self):
 		self.train_frames = []
 		self.train_gts = []

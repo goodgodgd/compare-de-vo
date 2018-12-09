@@ -7,7 +7,7 @@ import numpy as np
 import scipy.misc
 from glob import glob
 
-class cityscapes_loader(object):
+class cityscapes_loader:
     def __init__(self, 
                  dataset_dir,
                  split='train',

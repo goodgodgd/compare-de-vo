@@ -10,7 +10,7 @@ class DataFormat(Enum):
     INT64 = 3
 
 
-class RawDataFeeder(object):
+class RawDataFeeder:
     def __len__(self):
         raise NotImplementedError()
 

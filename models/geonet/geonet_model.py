@@ -1,9 +1,9 @@
+from abstracts import ModelBase
 from models.geonet.geonet_nets import *
 from models.geonet.utils import *
 
 
-class GeoNetModel(object):
-
+class GeoNetModel(ModelBase):
     def __init__(self, opt):
         self.opt = opt
         self.tgt_image = None

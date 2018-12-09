@@ -1,21 +1,29 @@
 #! /bin/bash
 
-# where "kitti_raw_data" and "kitti_odom" exist
+### MANUAL SET: where "kitti_raw_data" and "kitti_odom" exist
 RAW_DATA_ROOT="/media/ian/My Passport"
-# where all the results saved
+### MANUAL SET: where all the results saved
 OUTPUT_PATH="/home/ian/workplace/CompareDevo/devo_bench_data"
+### MANUAL SET: model name
+MODEL_NAME="geonet"
 
 KITTI_ODOM_RAW="$RAW_DATA_ROOT/data_odometry"
 KITTI_ODOM_STACKED="$OUTPUT_PATH/kitti_odom"
 KITTI_ODOM_TFRECORD="$OUTPUT_PATH/tfrecords/kitti_odom"
-POSE_NET_MODEL="$OUTPUT_PATH/ckpts/geonet/geonet_posenet"
 
 KITTI_EIGEN_RAW="$RAW_DATA_ROOT/kitti_raw_data"
 KITTI_EIGEN_STACKED="$OUTPUT_PATH/kitti_raw_eigen"
 KITTI_EIGEN_TFRECORD="$OUTPUT_PATH/tfrecords/kitti_raw_eigen"
-DEPTH_NET_MODEL="$OUTPUT_PATH/ckpts/geonet/geonet_depthnet"
 
+MODEL_CKPT_DIR="$OUTPUT_PATH/ckpts/$MODEL_NAME"
+NEW_TRAIN_MODEL="$MODEL_CKPT_DIR/train"
 PREDICT_OUTPUT="$OUTPUT_PATH/predicts"
+EVALUATION_OUTPUT="$OUTPUT_PATH/evaluation"
+
+### MANUAL SET: checkpoints for evaluation
+POSE_EVAL_CKPT="$MODEL_CKPT_DIR/geonet/geonet_posenet/model"
+DEPTH_EVAL_CKPT="$MODEL_CKPT_DIR/geonet/geonet_depthnet/model"
+
 
 if [ "$1" == "--help" ]
 then
@@ -44,18 +52,17 @@ then
 	
 	mkdir -p "$KITTI_ODOM_STACKED"
 	mkdir -p "$KITTI_ODOM_TFRECORD"
-	mkdir -p "$POSE_NET_MODEL"
-
 	mkdir -p "$KITTI_EIGEN_STACKED"
 	mkdir -p "$KITTI_EIGEN_TFRECORD"
-	mkdir -p "$DEPTH_NET_MODEL"
 
+	mkdir -p "$MODEL_CKPT_DIR"
 	mkdir -p "$PREDICT_OUTPUT"
+	mkdir -p "$EVALUATION_OUTPUT"
 
 elif [ "$1" == "prepare_kitti_eigen" ]
 then
 	python data/prepare_stacked_data.py \
-		--dataset_dir="$KITTI_EIGEN_RAW" \
+		--raw_dataset_dir="$KITTI_EIGEN_RAW" \
 		--dataset_name=kitti_raw_eigen \
 		--dump_root="$KITTI_EIGEN_STACKED" \
 		--seq_length=3 \
@@ -68,7 +75,7 @@ then
 elif [ "$1" == "prepare_kitti_odom" ]
 then
 	python data/prepare_stacked_data.py \
-		--dataset_dir="$KITTI_ODOM_RAW" \
+		--raw_dataset_dir="$KITTI_ODOM_RAW" \
 		--dataset_name=kitti_odom \
 		--dump_root="$KITTI_ODOM_STACKED" \
 		--seq_length=5 \
@@ -97,7 +104,8 @@ then
 elif [ "$1" == "train_rigid" ]
 then
 	python devo_bench_main.py \
-		--mode=train_rigid \
+		--mode="train_rigid" \
+		--model_name="$MODEL_NAME" \
 		--tfrecords_dir="$KITTI_ODOM_TFRECORD" \
 		--checkpoint_dir="$NEW_TRAIN_MODEL" \
 		--learning_rate=0.0002 \
@@ -109,35 +117,35 @@ elif [ "$1" == "pred_depth" ]
 then
 	python devo_bench_main.py \
 		--mode="pred_depth" \
-		--dataset_dir="$KITTI_EIGEN_STACKED" \
+		--model_name="$MODEL_NAME" \
 		--tfrecords_dir="$KITTI_EIGEN_TFRECORD" \
-		--init_ckpt_file="$DEPTH_NET_MODEL/model" \
-		--checkpoint_dir="$DEPTH_NET_MODEL" \
+		--init_ckpt_file="$DEPTH_EVAL_CKPT" \
 		--batch_size=1 \
-		--output_dir="$PREDICT_OUTPUT"
+		--pred_out_dir="$PREDICT_OUTPUT"
 
 elif [ "$1" == "pred_pose" ]
 then
 	python devo_bench_main.py \
 		--mode="pred_pose" \
-		--dataset_dir="$KITTI_ODOM_STACKED" \
+		--model_name="$MODEL_NAME" \
 		--tfrecords_dir="$KITTI_ODOM_TFRECORD" \
-		--init_ckpt_file="$POSE_NET_MODEL/model" \
-		--checkpoint_dir="$POSE_NET_MODEL" \
+		--init_ckpt_file="$POSE_EVAL_CKPT" \
 		--batch_size=32 \
-		--output_dir="$PREDICT_OUTPUT"
+		--pred_out_dir="$PREDICT_OUTPUT"
 
 elif [ "$1" == "eval_depth" ]
 then
 	python devo_bench_main.py \
 		--mode="eval_depth" \
-		--output_dir="$PREDICT_OUTPUT"
+		--pred_out_dir="$PREDICT_OUTPUT" \
+		--eval_out_dir="$EVALUATION_OUTPUT"
 
 elif [ "$1" == "eval_pose" ]
 then
 	python devo_bench_main.py \
 		--mode="eval_pose" \
-		--output_dir="$PREDICT_OUTPUT"
+		--pred_out_dir="$PREDICT_OUTPUT" \
+		--eval_out_dir="$EVALUATION_OUTPUT"
 
 else
 	echo "invalid option, please type ./devo-executer.sh --help"
