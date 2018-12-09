@@ -7,7 +7,6 @@ import cv2
 import pandas as pd
 
 from data.tfrecord_feeder import dataset_feeder
-from constants import InputShape
 import data.kitti.kitti_pose_utils as pu
 import data.kitti.kitti_depth_utils as du
 
@@ -19,7 +18,7 @@ def train(opt, model_op):
         os.makedirs(opt.checkpoint_dir)
 
     def data_feeder():
-        return dataset_feeder(opt, "train", opt.seq_length)
+        return dataset_feeder(opt, "train")
     model_op.train(data_feeder)
 
 
@@ -32,14 +31,14 @@ def set_random_seed():
 
 # ========== TEST ==========
 def pred_pose(opt, net_model):
-    input_uint8 = tf.placeholder(tf.uint8, [opt.batch_size, InputShape.HEIGHT, InputShape.WIDTH,
+    input_uint8 = tf.placeholder(tf.uint8, [opt.batch_size, opt.img_height, opt.img_width,
                                             opt.seq_length * 3], name='raw_input')
     tgt_image = input_uint8[:, :, :, :3]
     src_image_stack = input_uint8[:, :, :, 3:]
     net_model.build_model(tgt_image, src_image_stack, None)
     fetches = {"pose": net_model.get_pose_pred()}
     saver = tf.train.Saver([var for var in tf.model_variables()])
-    dataset_iter = dataset_feeder(opt, "test", opt.seq_length)
+    dataset_iter = dataset_feeder(opt, "test")
 
     gt_poses = []
     pred_poses = []
@@ -73,13 +72,13 @@ def pred_pose(opt, net_model):
 
 
 def pred_depth(opt, net_model):
-    input_uint8 = tf.placeholder(tf.uint8, [opt.batch_size, InputShape.HEIGHT, InputShape.WIDTH,
+    input_uint8 = tf.placeholder(tf.uint8, [opt.batch_size, opt.img_height, opt.img_width,
                                             opt.seq_length * 3], name='raw_input')
     tgt_image = input_uint8[:, :, :, :3]
     net_model.build_model(tgt_image, None, None)
     fetches = {"depth": net_model.get_depth_pred()}
     saver = tf.train.Saver([var for var in tf.model_variables()])
-    dataset_iter = dataset_feeder(opt, "test", opt.seq_length)
+    dataset_iter = dataset_feeder(opt, "test")
 
     gt_depths = []
     pred_depths = []

@@ -3,7 +3,7 @@
 ### MANUAL SET: where "kitti_raw_data" and "kitti_odom" exist
 RAW_DATA_ROOT="/media/ian/My Passport"
 ### MANUAL SET: where all the results saved
-OUTPUT_PATH="/home/ian/workplace/CompareDevo/devo_bench_data"
+OUTPUT_PATH="/home/ian/workplace/DevoBench/devo_bench_data"
 ### MANUAL SET: model name
 MODEL_NAME="geonet"
 

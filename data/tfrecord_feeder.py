@@ -1,18 +1,17 @@
 import tensorflow as tf
-from constants import InputShape
 
 
 # !!! when executing eagerly, return 'iterable' dataset
 # !!! when normal session, return 'tensors' of features and labels
 # guide line in https://www.tensorflow.org/programmers_guide/datasets#consuming_tfrecord_data
-def dataset_feeder(opt, split, seq_length):
+def dataset_feeder(opt, split):
     # 파일 패턴으로 파일 리스트 입력
     file_pattern = ["{}/*_{}_*.tfrecord".format(opt.tfrecords_dir, split)]
     filenames = tf.gfile.Glob(file_pattern)
     dataset = tf.data.TFRecordDataset(filenames)
 
     def parse_example_opt(record):
-        return parse_example(record, opt.num_scales, seq_length)
+        return parse_example(record, opt.num_scales, opt.seq_length, opt.img_height, opt.img_width)
     # use `Dataset.map()` to build a pair of feature dictionary and label tensor for each example.
     dataset = dataset.map(parse_example_opt)
     return dataset_process(dataset, split, opt.batch_size, opt.train_epochs)
@@ -20,7 +19,7 @@ def dataset_feeder(opt, split, seq_length):
 
 # use `tf.parse_single_example()` to extract data from a `tf.Example` protocol buffer,
 # and perform any additional per-record preprocessing.
-def parse_example(record, num_scales, seq_length):
+def parse_example(record, num_scales, seq_length, image_height, image_width):
     # np.to_string()으로 ndarray 이미지를 string으로 변환한 다음 저장했기 때문에 tf.string으로 불러옴
     keys_to_features = {
         "image": tf.FixedLenFeature((), tf.string, default_value=""),
@@ -46,8 +45,8 @@ def parse_example(record, num_scales, seq_length):
     frame_int8 = tf.decode_raw(parsed["frame"], tf.int8)
 
     # perform additional preprocessing on the parsed data.
-    tgt_image, src_image_stack = unpack_image_sequence(image, InputShape.HEIGHT,
-                                                       InputShape.WIDTH, seq_length)
+    tgt_image, src_image_stack = unpack_image_sequence(image, image_height,
+                                                       image_width, seq_length)
     intrinsics_ms = get_multi_scale_intrinsics(intrinsic, num_scales)
 
     return {"target": tgt_image, "sources": src_image_stack,

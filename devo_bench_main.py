@@ -7,6 +7,7 @@ from model_operator import GeoNetOperator
 flags = tf.app.flags
 flags.DEFINE_string("mode",                         "",    "(train_rigid, train_flow) or (pred_depth, pred_pose, test_flow)")
 flags.DEFINE_string("model_name",                   "",    "geonet or sfmlearner")
+flags.DEFINE_string("dataset_name",             "KITTI",    "KITTI")
 flags.DEFINE_string("tfrecords_dir",                "",    "tfrecords directory")
 flags.DEFINE_string("eval_out_dir",                 "",    "evaluation result directory")
 flags.DEFINE_string("init_ckpt_file",             None,    "Specific checkpoint file to initialize from")
@@ -73,6 +74,10 @@ def main(_):
                       or opt.mode in ['train_rigid', 'pred_depth']
     opt.add_posenet = opt.add_flownet and opt.flownet_type == 'residual' \
                       or opt.mode in ['train_rigid', 'pred_pose']
+
+    if "KITTI" in opt.dataset_name:
+        opt.img_height = 128
+        opt.img_width = 416
 
     print("important opts", "\ntfrecord", opt.tfrecords_dir,
           "\ncheckpoint", opt.checkpoint_dir, "\nbatch", opt.batch_size)
