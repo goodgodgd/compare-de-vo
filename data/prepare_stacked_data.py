@@ -62,8 +62,8 @@ def dump_example(n, data_feeder, num_split):
             raise
 
     # save stacked image
-    # dump_img_file = '{}/{}.jpg'.format(dump_dir, example['file_name'])
-    # scipy.misc.imsave(dump_img_file, image_seq.astype(np.uint8))
+    dump_img_file = '{}/{}.jpg'.format(dump_dir, example['file_name'])
+    scipy.misc.imsave(dump_img_file, image_seq.astype(np.uint8))
 
     # save gt data
     if "odom" in opt.dataset_name:

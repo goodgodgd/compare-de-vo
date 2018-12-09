@@ -84,7 +84,7 @@ def main(_):
 
     # set model class and model operator
     net_model = None
-    if opt.mode in ['trian_rigid', 'pred_depth', 'pred_pose']:
+    if opt.mode in ['train_rigid', 'pred_depth', 'pred_pose']:
         if opt.model_name == "geonet":
             net_model = GeoNetModel(opt)
     model_op = GeoNetOperator(opt, net_model) if opt.model_name == "geonet" else None

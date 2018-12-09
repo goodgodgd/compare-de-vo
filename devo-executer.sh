@@ -79,7 +79,7 @@ then
 		--dataset_name=kitti_odom \
 		--dump_root="$KITTI_ODOM_STACKED" \
 		--seq_length=5 \
-		--split="test" \
+		--split="" \
 		--img_height=128 \
 		--img_width=416 \
 		--num_threads=8 \

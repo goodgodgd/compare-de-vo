@@ -117,7 +117,7 @@ class KittiTfrdMaker(TfrecordsMaker):
                 gtfile = os.path.join(dataset_root, seq_dir, "gt", frame_id + "_gt.txt")
                 if not os.path.isfile(gtfile):
                     gtfile = os.path.join(dataset_root, seq_dir, "gt", frame_id + "_gt.npy")
-                assert os.path.isfile(gtfile), "[ERROR], gt file not found: {}".format(gtfile[:-4])
+                # assert os.path.isfile(gtfile), "[ERROR], gt file not found: {}".format(gtfile[:-4])
                 gt_files.append(gtfile)
                 camfile = os.path.join(dataset_root, seq_dir, "intrinsics.txt")
                 cam_files.append(camfile)

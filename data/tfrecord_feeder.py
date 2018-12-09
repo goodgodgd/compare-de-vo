@@ -8,6 +8,7 @@ def dataset_feeder(opt, split):
     # 파일 패턴으로 파일 리스트 입력
     file_pattern = ["{}/*_{}_*.tfrecord".format(opt.tfrecords_dir, split)]
     filenames = tf.gfile.Glob(file_pattern)
+    print("``````````````tfrecords", file_pattern, filenames)
     dataset = tf.data.TFRecordDataset(filenames)
 
     def parse_example_opt(record):
