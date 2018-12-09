@@ -51,15 +51,11 @@ def dump_example(n, data_feeder, num_split):
 
     # keep intrinsics for each dir
     if dump_dir not in dump_list:
+        if not os.path.isdir(os.path.join(dump_dir, 'gt')):
+            os.makedirs(os.path.join(dump_dir, 'gt'))
         dump_list.append(dump_dir)
         dump_cam_file = '{}/intrinsics.txt'.format(dump_dir)
         np.savetxt(dump_cam_file, intrinsics, fmt='%.6f')
-
-    try:
-        os.makedirs(os.path.join(dump_dir, 'gt'))
-    except OSError:
-        if not os.path.isdir(os.path.join(dump_dir, 'gt')):
-            raise
 
     # save stacked image
     dump_img_file = '{}/{}.jpg'.format(dump_dir, example['file_name'])
@@ -117,8 +113,8 @@ def write_frames_three_splits(frames, filename):
 
 
 def main():
-    if not os.path.exists(opt.dump_root):
-        os.makedirs(opt.dump_root)
+    assert os.path.exists(opt.raw_dataset_dir), "raw dataset dir does NOT exist: {}".format(opt.raw_dataset_dir)
+    assert os.path.exists(opt.dump_root), "dump root does NOT exist: {}".format(opt.dump_root)
 
     data_loader = None
 

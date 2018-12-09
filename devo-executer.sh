@@ -21,8 +21,8 @@ PREDICT_OUTPUT="$OUTPUT_PATH/predicts"
 EVALUATION_OUTPUT="$OUTPUT_PATH/evaluation"
 
 ### MANUAL SET: checkpoints for evaluation
-POSE_EVAL_CKPT="$MODEL_CKPT_DIR/geonet/geonet_posenet/model"
-DEPTH_EVAL_CKPT="$MODEL_CKPT_DIR/geonet/geonet_depthnet/model"
+POSE_EVAL_CKPT="$MODEL_CKPT_DIR/geonet_posenet/model"
+DEPTH_EVAL_CKPT="$MODEL_CKPT_DIR/geonet_depthnet/model"
 
 
 if [ "$1" == "--help" ]
@@ -79,7 +79,7 @@ then
 		--dataset_name=kitti_odom \
 		--dump_root="$KITTI_ODOM_STACKED" \
 		--seq_length=5 \
-		--split="" \
+		--split="all" \
 		--img_height=128 \
 		--img_width=416 \
 		--num_threads=8 \

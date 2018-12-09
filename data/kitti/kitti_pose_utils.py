@@ -4,9 +4,16 @@ import os
 import math
 import numpy as np
 import functools
+import glob
+
+# CAUTION!!
+# TUM's pose format use quaternion like (qx qy qz qw)
+# one must be careful about quaternion expression
+# This package utilize TUM's format. (despite I hate it... I prefer (qw qx qy qz))
 
 
-def save_pose_result(pose_seqs, output_root, modelname, frames, seq_length):
+# ========== for pred_pose ==========
+def save_pose_result(pose_seqs, frames, output_root, modelname, seq_length):
     assert os.path.isdir(output_root), "[ERROR] dir not found: {}".format(output_root)
     save_path = os.path.join(output_root, modelname, "pose")
     if not os.path.isdir(save_path):
@@ -26,6 +33,123 @@ def save_pose_result(pose_seqs, output_root, modelname, frames, seq_length):
     print("pose results were saved!!")
 
 
+def reconstruct_traj_and_save(predict_root, gt_name, model_name, drive, subseq_len):
+    pred_pose_path = os.path.join(predict_root, model_name, "pose", drive)
+    gt_pose_file = os.path.join(predict_root, gt_name, "pose", "{}_full.txt".format(drive))
+    assert os.path.isfile(gt_pose_file) and os.path.isdir(pred_pose_path),\
+        "files: {}, {}".format(gt_pose_file, pred_pose_path)
+
+    gt_traj = read_poses(gt_pose_file)
+    traj_len = gt_traj.shape[0]
+    prinitv = traj_len//5
+    print("gt traj shape", gt_traj.shape)
+    print("gt traj\n", gt_traj[0:-1:prinitv, 1:4])
+
+    # itv: pose multiplication interval
+    for itv in range(1, subseq_len):
+        pred_rel_poses = read_relative_poses(pred_pose_path, itv)
+        gt_rel_poses = create_rel_poses(gt_traj, itv)
+        # print("pred_rel_poses\n", pred_rel_poses[0:-1:prinitv])
+        # print("gt_rel_poses\n", gt_rel_poses[0:-1:prinitv])
+        print("pose shapes: gt_rel:{}, pred_rel:{}".format(gt_rel_poses.shape, pred_rel_poses.shape))
+
+        gt_len = gt_rel_poses.shape[0]
+        pred_len = pred_rel_poses.shape[0]
+        print("length", pred_len, gt_len, subseq_len)
+        assert gt_len >= pred_len and gt_len - pred_len < subseq_len
+        gt_rel_poses = gt_rel_poses[:pred_len]
+        print("adjusted pose shapes: gt_rel:{}, pred_rel:{}".format(gt_rel_poses.shape, pred_rel_poses.shape))
+
+        recon_traj = reconstruct_abs_poses(pred_rel_poses, gt_rel_poses)
+        print("reconstructed trajectory\n", recon_traj[0:-1:prinitv//itv, 1:4])
+        filename = os.path.join(predict_root, model_name, "{}_full_recon_{:02d}".format(drive, itv))
+        np.savetxt(filename, recon_traj, fmt="%.6f")
+
+
+def read_poses(pose_file):
+    poses = []
+    with open(pose_file, 'r') as f:
+        lines = f.readlines()
+        for line in lines:
+            poses.append([float(numstr) for numstr in line.rstrip().split(" ")])
+    poses = np.array(poses)
+    return poses
+
+
+def read_relative_poses(pose_path, itv):
+    file_list = glob.glob(os.path.join(pose_path, "*.txt"))
+    file_list.sort()
+    rel_poses = [np.array([0, 0, 0, 0, 0, 0, 0, 1], dtype=np.float32)]
+    for i in range(0, len(file_list), itv):
+        sub_seq = read_poses(file_list[i])
+        rel_poses.append(sub_seq[itv])
+
+    rel_poses = np.array(rel_poses)
+    return rel_poses
+
+
+def create_rel_poses(gt_traj, itv):
+    gt_rel_poses = [gt_traj[0]]
+    for i in range(itv, len(gt_traj), itv):
+        bef_pose = gt_traj[i - itv]
+        cur_pose = gt_traj[i]
+        rel_pose = compute_relative_pose(bef_pose, cur_pose)
+        gt_rel_poses.append(rel_pose)
+        # print("create rel poses:{} {}\n    {}\n  {}".format(i, bef_pose, cur_pose, rel_pose))
+    gt_rel_poses = np.array(gt_rel_poses)
+    return gt_rel_poses
+
+
+def compute_relative_pose(base_pose, other_pose):
+    base_mat = quat_pose_to_mat(base_pose)
+    other_mat = quat_pose_to_mat(other_pose)
+    rel_mat = np.matmul(np.linalg.inv(base_mat), other_mat)
+    rel_quat = rot2quat(rel_mat[:3, :3])
+    rel_posi = rel_mat[:3, 3]
+    rel_pose = np.concatenate([other_pose[:1], rel_posi, rel_quat], axis=0)
+    return rel_pose
+
+
+def quat_pose_to_mat(pose_vec):
+    assert pose_vec.size == 8, "pose to mat {}, {}".format(pose_vec.size, pose_vec.shape)
+    Tmat = np.identity(4)
+    Tmat[:3, :3] = quat2mat(pose_vec[4:])
+    Tmat[:3, 3] = pose_vec[1:4]
+    return Tmat
+
+
+def reconstruct_abs_poses(pred_rel_poses, gt_rel_poses):
+    pred_traj = [pred_rel_poses[0]]
+    assert pred_rel_poses.shape == gt_rel_poses.shape
+    pose_len = pred_rel_poses.shape[0]
+
+    for i in range(1, pose_len):
+        gt_pose = gt_rel_poses[i]
+        pred_pose = pred_rel_poses[i]
+        if np.sum(pred_pose[1:4] ** 2) > 1e-6:
+            scale = np.sum(gt_pose[1:4] * pred_pose[1:4]) / np.sum(pred_pose[1:4] ** 2)
+        else:
+            scale = 0
+        pred_pose[1:4] = pred_pose[1:4] * scale
+        pred_abs_pose = multiply_poses(pred_traj[-1], pred_pose)
+        # print("multiply:", scale, pred_traj[-1], "\n ", pred_pose, "\n ", pred_abs_pose)
+        pred_traj.append(pred_abs_pose)
+    pred_traj = np.array(pred_traj)
+    return pred_traj
+
+
+def multiply_poses(base_pose, other_pose):
+    assert base_pose.size == 8 and other_pose.size == 8, "relative pose: {}, {}".format(base_pose.size, other_pose.size)
+    base_mat = quat_pose_to_mat(base_pose)
+    other_mat = quat_pose_to_mat(other_pose)
+    abs_mat = np.matmul(base_mat, other_mat)
+    abs_quat = rot2quat(abs_mat[:3, :3])
+    abs_posi = abs_mat[:3, 3]
+    abs_pose = np.concatenate([other_pose[:1], abs_posi, abs_quat], axis=0)
+    return abs_pose
+
+
+# ========== for eval_pose ==========
 def compute_pose_error(gt_sseq, pred_sseq):
     gt_sseq, pred_sseq, ali_inds = align_pose_seq(gt_sseq, pred_sseq)
 
@@ -91,10 +215,52 @@ def pose_diff(gt_pose, pred_pose):
     return trn_rmse, rot_diff
 
 
+# ========== for data loader ==========
+def format_pose_seq_TUM(poses, times):
+    if isinstance(poses, list):
+        tum_poses = format_pose_list(poses, times)
+    elif isinstance(poses, np.ndarray):
+        if not isinstance(times, np.ndarray):
+            times = np.array(times)
+        tum_poses = format_npy_array(poses, times)
+    else:
+        tum_poses = None
+    return tum_poses
+
+
+def format_pose_list(poses, times):
+    # poses: list of [tx, ty, tz, rx, ry, rz]
+    pose_seq = []
+    # First frame as the origin
+    first_pose = euler_pose_to_mat(poses[0])
+    for pose, time in zip(poses, times):
+        this_pose = euler_pose_to_mat(pose)
+        # this line is corrected from "geonet"
+        this_pose = np.matmul(np.linalg.inv(first_pose), this_pose)
+        tx = this_pose[0, 3]
+        ty = this_pose[1, 3]
+        tz = this_pose[2, 3]
+        rot = this_pose[:3, :3]
+        qx, qy, qz, qw = rot2quat(rot)
+        pose = np.array([time, tx, ty, tz, qx, qy, qz, qw])
+        pose_seq.append(pose)
+    pose_seq = np.array(pose_seq)
+    return pose_seq
+
+
+def format_npy_array(poses, times):
+    pose_list = []
+    for i in range(poses.shape[0]):
+        pose_list.append(poses[i, :])
+    return format_pose_list(pose_list, times.tolist())
+
+
+
+# ========== utils ==========
 def rot2quat(R):
     rz, ry, rx = mat2euler(R)
-    qw, qx, qy, qz = euler2quat(rz, ry, rx)
-    return qw, qx, qy, qz
+    qx, qy, qz, qw = euler2quat(rz, ry, rx)
+    return qx, qy, qz, qw
 
 
 def quat2mat(q):
@@ -102,7 +268,7 @@ def quat2mat(q):
     https://afni.nimh.nih.gov/pub/dist/src/pkundu/meica.libs/nibabel/quaternions.py
     Parameters
     ----------
-    q : 4 element array-like
+    q : 4 element array-like (qx, qy, qz, qw)
 
     Returns
     -------
@@ -130,7 +296,7 @@ def quat2mat(q):
     >>> np.allclose(M, np.diag([1, -1, -1]))
     True
     '''
-    w, x, y, z = q
+    x, y, z, w = q
     Nq = w*w + x*x + y*y + z*z
     if Nq < 1e-8:
         return np.eye(3)
@@ -338,7 +504,7 @@ def euler2quat(z=0, y=0, x=0, isRadian=True):
     Returns
     -------
     quat : array shape (4,)
-         Quaternion in w, x, y z (real, then vector) format
+         Quaternion in x, y z, q format
     Notes
     -----
     We can derive this formula in Sympy using:
@@ -365,14 +531,13 @@ def euler2quat(z=0, y=0, x=0, isRadian=True):
     sy = math.sin(y)
     cx = math.cos(x)
     sx = math.sin(x)
-    return np.array([
-                     cx*cy*cz - sx*sy*sz,
-                     cx*sy*sz + cy*cz*sx,
+    return np.array([cx*sy*sz + cy*cz*sx,
                      cx*cz*sy - sx*cy*sz,
-                     cx*cy*sz + sx*cz*sy])
+                     cx*cy*sz + sx*cz*sy,
+                     cx*cy*cz - sx*sy*sz])
 
 
-def pose_vec_to_mat(vec):
+def euler_pose_to_mat(vec):
     tx = vec[0]
     ty = vec[1]
     tz = vec[2]
@@ -384,40 +549,15 @@ def pose_vec_to_mat(vec):
     return Tmat
 
 
-def format_pose_seq_TUM(poses, times):
-    if isinstance(poses, list):
-        tum_poses = format_pose_list(poses, times)
-    elif isinstance(poses, np.ndarray):
-        if not isinstance(times, np.ndarray):
-            times = np.array(times)
-        tum_poses = format_npy_array(poses, times)
-    else:
-        tum_poses = None
-    return tum_poses
+def test_main():
+    np.set_printoptions(precision=4, linewidth=120)
+    ang = 0.5
+    print(euler_pose_to_mat([1, 2, 3, 0, 0, 0.5]))
+    pose = np.array([0., 1., 2., 3., 0, 0, np.sin(ang/2), np.cos(ang/2)])
+    print(quat_pose_to_mat(pose))
+    predict_root = "/home/ian/workplace/DevoBench/devo_bench_data/predicts"
+    reconstruct_traj_and_save(predict_root, "ground_truth", "geonet", 5, ["09", "10"])
 
 
-def format_pose_list(poses, times):
-    # poses: list of [tx, ty, tz, rx, ry, rz]
-    pose_seq = []
-    # First frame as the origin
-    first_pose = pose_vec_to_mat(poses[0])
-    for pose, time in zip(poses, times):
-        this_pose = pose_vec_to_mat(pose)
-        # this_pose = np.dot(this_pose, np.linalg.inv(first_pose))
-        this_pose = np.dot(first_pose, np.linalg.inv(this_pose))
-        tx = this_pose[0, 3]
-        ty = this_pose[1, 3]
-        tz = this_pose[2, 3]
-        rot = this_pose[:3, :3]
-        qw, qx, qy, qz = rot2quat(rot)
-        pose = np.array([time, tx, ty, tz, qx, qy, qz, qw])
-        pose_seq.append(pose)
-    pose_seq = np.array(pose_seq)
-    return pose_seq
-
-
-def format_npy_array(poses, times):
-    pose_list = []
-    for i in range(poses.shape[0]):
-        pose_list.append(poses[i, :])
-    return format_pose_list(pose_list, times.tolist())
+if __name__ == '__main__':
+    test_main()

@@ -61,7 +61,7 @@ def main(_):
     # set subordinative variables
     if opt.mode == "train_rigid":
         opt.seq_length = 3
-    elif opt.mode == "pred_pose":
+    elif opt.mode in ["pred_pose", "eval_pose"]:
         opt.seq_length = 5
     elif opt.mode == "pred_depth":
         opt.seq_length = 1

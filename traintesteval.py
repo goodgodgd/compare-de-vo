@@ -29,7 +29,7 @@ def set_random_seed():
     random.seed(seed)
 
 
-# ========== TEST ==========
+# ========== PREDICT ==========
 def pred_pose(opt, net_model):
     input_uint8 = tf.placeholder(tf.uint8, [opt.batch_size, opt.img_height, opt.img_width,
                                             opt.seq_length * 3], name='raw_input')
@@ -67,8 +67,11 @@ def pred_pose(opt, net_model):
 
     print("output length (gt, pred)", len(gt_poses), len(pred_poses))
     # one can evaluate pose errors here but we save results and evaluate it in the evaluation step
-    pu.save_pose_result(pred_poses, opt.pred_out_dir, opt.model_name, frames, opt.seq_length)
+    pu.save_pose_result(pred_poses, frames, opt.pred_out_dir, opt.model_name, opt.seq_length)
     # save_pose_result(gt_poses, opt.pred_out_dir, "ground_truth", frames, opt.seq_length)
+
+    seq_ids = [frame.split(" ")[0] for frame in frames]
+    seq_ids = list(set(seq_ids))
 
 
 def pred_depth(opt, net_model):
@@ -182,6 +185,11 @@ def eval_pose(opt):
             continue
 
         for seq in eval_seq:
+            # reconstruct full trajectory based on predictd relative poses
+            # orb sequences are not fully predicted, so they would not be reconstructed
+            if "orb" not in model:
+                pu.reconstruct_traj_and_save(opt.pred_out_dir, gt_dir, model, seq, opt.seq_length)
+
             gt_files = glob.glob(os.path.join(gt_path, seq, "*.txt"))
             gt_files.sort()
 
@@ -239,8 +247,5 @@ def evaluate_from_errors(errors_df):
 
     pose_eval_res = pd.concat([atess, aress, atefr, arefr], axis=1)
     return pose_eval_res
-
-
-
 
 
