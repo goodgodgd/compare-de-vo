@@ -170,53 +170,65 @@ def evaluate_depth_errors(pred_depths, gt_files, model_name, min_depth, max_dept
 
 
 def eval_pose(opt):
-    eval_seq = ["09", "10"]
+    eval_drive = ["09", "10"]
     gt_dir = "ground_truth"
     model_names = os.listdir(opt.pred_out_dir)
     model_names.remove(gt_dir)
     gt_path = os.path.join(opt.pred_out_dir, gt_dir, "pose")
     pred_paths = {model: os.path.join(opt.pred_out_dir, model, "pose") for model in model_names}
-    dfcols = ["model", "seq", "subseq_begin", "subseq_index", "trn_err", "rot_err"]
-    pose_errors_df = pd.DataFrame(columns=dfcols)
+    sseq_cols = ["model", "drive", "subseq_begin", "subseq_index", "trn_err", "rot_err"]
+    subseq_errors = pd.DataFrame(columns=sseq_cols)
+    traj_cols = ["model", "drive", "gtind", "trn_err", "rot_err"]
+    traj_errors = pd.DataFrame(columns=traj_cols)
 
     for model, pred_path in pred_paths.items():
-        if not os.path.isdir(os.path.join(gt_path, eval_seq[0])):
+        if not os.path.isdir(os.path.join(gt_path, eval_drive[0])):
             print("No pose prediction sequences from model {}".format(model))
             continue
 
-        for seq in eval_seq:
+        for drive in eval_drive:
+            subseq_errors = evaluate_drive(gt_path, pred_path, model, drive, subseq_errors)
+
             # reconstruct full trajectory based on predictd relative poses
             # orb sequences are not fully predicted, so they would not be reconstructed
             if "orb" not in model:
-                pu.reconstruct_traj_and_save(opt.pred_out_dir, gt_dir, model, seq, opt.seq_length)
+                pu.reconstruct_traj_and_save(gt_path, pred_path, drive, opt.seq_length)
+                # drive_traj_err = pu.evaluate_recon_traj(opt.pred_out_dir, gt_dir, model, drive)
 
-            gt_files = glob.glob(os.path.join(gt_path, seq, "*.txt"))
-            gt_files.sort()
-
-            for i, gtfile in enumerate(gt_files):
-                predfile = gtfile.replace(gt_path, pred_path)
-                assert os.path.isfile(gtfile), "{} not found!!".format(gtfile)
-                if not os.path.isfile(predfile):
-                    continue
-
-                gt_short_seq = np.loadtxt(gtfile)
-                pred_short_seq = np.loadtxt(predfile)
-                if pred_short_seq.ndim < 2 or abs(gt_short_seq[0, 0] - pred_short_seq[0, 0]) > 0.01:
-                    continue
-
-                assert (gt_short_seq.shape == (5, 8) and pred_short_seq.shape[1] == 8)
-                try:
-                    sseq_err = pu.compute_pose_error(gt_short_seq, pred_short_seq)
-                    for pose_err in sseq_err:
-                        pose_errors_df = pose_errors_df.append(
-                            dict(zip(dfcols, [model, seq, i, pose_err[0], pose_err[1], pose_err[2]])),
-                            ignore_index=True)
-                except ValueError as ve:
-                    print(ve)
-
-    pose_eval_result = evaluate_from_errors(pose_errors_df)
+    pose_eval_result = evaluate_from_errors(subseq_errors)
     print(pose_eval_result)
     pose_eval_result.to_csv(os.path.join(opt.eval_out_dir, "pose_eval.csv"))
+
+
+def evaluate_drive(gt_path, pred_path, model, drive, subseq_errors):
+    sseq_cols = list(subseq_errors)
+    gt_files = glob.glob(os.path.join(gt_path, drive, "*.txt"))
+    gt_files.sort()
+
+    for i, gtfile in enumerate(gt_files):
+        predfile = gtfile.replace(gt_path, pred_path)
+        # gt file must exist. if no prediction file, just skip it.
+        assert os.path.isfile(gtfile), "{} not found!!".format(gtfile)
+        if not os.path.isfile(predfile):
+            continue
+
+        # read short (5) pose sequences
+        gt_short_seq = np.loadtxt(gtfile)
+        pred_short_seq = np.loadtxt(predfile)
+        if pred_short_seq.ndim < 2 or abs(gt_short_seq[0, 0] - pred_short_seq[0, 0]) > 0.01:
+            continue
+
+        assert (gt_short_seq.shape == (5, 8) and pred_short_seq.shape[1] == 8)
+        try:
+            # compute error between predicted poses and gt poses
+            sseq_err = pu.compute_pose_error(gt_short_seq, pred_short_seq)
+            for pose_err in sseq_err:
+                subseq_errors = subseq_errors.append(
+                    dict(zip(sseq_cols, [model, drive, i, pose_err[0], pose_err[1], pose_err[2]])),
+                    ignore_index=True)
+        except ValueError as ve:
+            print(ve)
+    return subseq_errors
 
 
 def evaluate_from_errors(errors_df):

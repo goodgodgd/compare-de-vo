@@ -33,9 +33,9 @@ def save_pose_result(pose_seqs, frames, output_root, modelname, seq_length):
     print("pose results were saved!!")
 
 
-def reconstruct_traj_and_save(predict_root, gt_name, model_name, drive, subseq_len):
-    pred_pose_path = os.path.join(predict_root, model_name, "pose", drive)
-    gt_pose_file = os.path.join(predict_root, gt_name, "pose", "{}_full.txt".format(drive))
+def reconstruct_traj_and_save(gt_path, pred_path, drive, subseq_len):
+    pred_pose_path = os.path.join(pred_path, drive)
+    gt_pose_file = os.path.join(gt_path, "{}_full.txt".format(drive))
     assert os.path.isfile(gt_pose_file) and os.path.isdir(pred_pose_path),\
         "files: {}, {}".format(gt_pose_file, pred_pose_path)
 
@@ -62,7 +62,7 @@ def reconstruct_traj_and_save(predict_root, gt_name, model_name, drive, subseq_l
 
         recon_traj = reconstruct_abs_poses(pred_rel_poses, gt_rel_poses)
         print("reconstructed trajectory\n", recon_traj[0:-1:prinitv//itv, 1:4])
-        filename = os.path.join(predict_root, model_name, "{}_full_recon_{:02d}".format(drive, itv))
+        filename = os.path.join(pred_path, "{}_full_recon_{:02d}".format(drive, itv))
         np.savetxt(filename, recon_traj, fmt="%.6f")
 
 
@@ -210,8 +210,8 @@ def pose_diff(gt_pose, pred_pose):
     pred_rmat = quat2mat(pred_pose[4:])
     # relative rotation
     rel_rmat = np.matmul(np.transpose(gt_rmat), pred_rmat)
-    rel_quat = rot2quat(rel_rmat)
-    rot_diff = abs(np.arccos(rel_quat[0]))
+    qx, qy, qz, qw = rot2quat(rel_rmat)
+    rot_diff = abs(np.arccos(qw))
     return trn_rmse, rot_diff
 
 
