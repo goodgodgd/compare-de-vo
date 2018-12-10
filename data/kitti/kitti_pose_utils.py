@@ -33,7 +33,7 @@ def save_pose_result(pose_seqs, frames, output_root, modelname, seq_length):
     print("pose results were saved!!")
 
 
-def reconstruct_traj_and_save(gt_path, pred_path, drive, subseq_len):
+def reconstruct_traj_and_save(gt_path, pred_path, drive, subseq_len, read_full: bool):
     pred_pose_path = os.path.join(pred_path, drive)
     gt_pose_file = os.path.join(gt_path, "{}_full.txt".format(drive))
     assert os.path.isfile(gt_pose_file) and os.path.isdir(pred_pose_path),\
@@ -41,27 +41,35 @@ def reconstruct_traj_and_save(gt_path, pred_path, drive, subseq_len):
 
     gt_traj = read_pose_file(gt_pose_file)
     traj_len = gt_traj.shape[0]
-    prinitv = traj_len//5
+    prinitv = traj_len//10
     print("gt traj shape", gt_traj.shape)
     print("gt traj\n", gt_traj[0:-1:prinitv, 1:4])
 
+    # when reading full traj, run the for loop only once
+    if read_full:
+        subseq_len = 2
+
     # itv: pose multiplication interval
     for itv in range(1, subseq_len):
-        pred_rel_poses = read_relative_poses(pred_pose_path, itv)
-        gt_rel_poses = create_rel_poses(gt_traj, itv)
-        # print("pred_rel_poses\n", pred_rel_poses[0:-1:prinitv])
-        # print("gt_rel_poses\n", gt_rel_poses[0:-1:prinitv])
-        print("pose shapes: gt_rel:{}, pred_rel:{}".format(gt_rel_poses.shape, pred_rel_poses.shape))
+        if read_full:
+            pred_pose_file = os.path.join(pred_path, "{}_full.txt".format(drive))
+            if not os.path.exists(pred_pose_file):
+                break
+            pred_abs_poses = read_pose_file(pred_pose_file)
+            pred_rel_poses = create_rel_poses(pred_abs_poses)
+        else:
+            pred_rel_poses = read_relative_poses(pred_pose_path, itv)
 
-        gt_len = gt_rel_poses.shape[0]
-        pred_len = pred_rel_poses.shape[0]
-        print("length", pred_len, gt_len, subseq_len)
-        assert gt_len >= pred_len and gt_len - pred_len < subseq_len
-        gt_rel_poses = gt_rel_poses[:pred_len]
-        print("adjusted pose shapes: gt_rel:{}, pred_rel:{}".format(gt_rel_poses.shape, pred_rel_poses.shape))
+        # align two pose lists by time
+        gt_abs_poses, pred_rel_poses, ali_inds = align_pose_seq(gt_traj, pred_rel_poses)
+        # convert gt trajectory to relative poses between two adjcent poses
+        print("gt abs poses\n", gt_abs_poses[:3, 1:4])
+        gt_rel_poses = create_rel_poses(gt_abs_poses)
+        print("gt rel poses\n", gt_rel_poses[:3, 1:4])
+        assert gt_rel_poses.shape == pred_rel_poses.shape
 
         recon_traj = reconstruct_abs_poses(pred_rel_poses, gt_rel_poses)
-        print("reconstructed trajectory\n", recon_traj[0:-1:prinitv//itv, 1:4])
+        print("reconstructed trajectory:\n", recon_traj[0:-1:prinitv//itv, 1:4])
         filename = os.path.join(pred_path, "{}_full_recon_{:02d}.txt".format(drive, itv))
         np.savetxt(filename, recon_traj, fmt="%.6f")
 
@@ -88,12 +96,12 @@ def read_relative_poses(pose_path, itv):
     return rel_poses
 
 
-def create_rel_poses(gt_traj, itv):
+def create_rel_poses(gt_traj):
     gt_rel_poses = [gt_traj[0]]
-    for i in range(itv, len(gt_traj), itv):
-        bef_pose = gt_traj[i - itv]
+    for i in range(1, len(gt_traj)):
+        base_pose = gt_traj[i - 1]
         cur_pose = gt_traj[i]
-        rel_pose = compute_relative_pose(bef_pose, cur_pose)
+        rel_pose = compute_relative_pose(base_pose, cur_pose)
         gt_rel_poses.append(rel_pose)
         # print("create rel poses:{} {}\n    {}\n  {}".format(i, bef_pose, cur_pose, rel_pose))
     gt_rel_poses = np.array(gt_rel_poses)
@@ -119,7 +127,8 @@ def quat_pose_to_mat(pose_vec):
 
 
 def reconstruct_abs_poses(pred_rel_poses, gt_rel_poses):
-    pred_traj = [pred_rel_poses[0]]
+    init_pose = compute_relative_pose(pred_rel_poses[0], gt_rel_poses[0])
+    pred_traj = [init_pose]
     assert pred_rel_poses.shape == gt_rel_poses.shape
     pose_len = pred_rel_poses.shape[0]
 
@@ -150,23 +159,23 @@ def multiply_poses(base_pose, other_pose):
 
 
 # ========== for eval_pose ==========
-def compute_pose_error(gt_poses, pred_poses):
+def compute_pose_error(gt_poses, pred_poses, ambiguous_scale: bool):
     gt_poses, pred_poses, ali_inds = align_pose_seq(gt_poses, pred_poses)
 
-    assert gt_poses.shape == pred_poses.shape, "after alignment, gt:{}, {} == pred:{}, {}"\
-        .format(gt_poses.shape[0], gt_poses.shape[1], pred_poses.shape[0], pred_poses.shape[1])
+    assert gt_poses.shape == pred_poses.shape, "after alignment, gt:{} == pred:{}"\
+        .format(gt_poses.shape, pred_poses.shape)
     seq_len = gt_poses.shape[0]
     err_result = []
     for si in range(1, seq_len):
-        te, re = pose_diff(gt_poses[si], pred_poses[si])
+        te, re = pose_diff(gt_poses[si], pred_poses[si], ambiguous_scale)
         err_result.append([ali_inds[si], te, re])
         assert ali_inds[si] > 0, "{} {}".format(si, ali_inds)
     return err_result
 
 
 def align_pose_seq(gt_poses, pred_poses, max_diff=0.01):
-    assert abs(gt_poses[0, 0] - pred_poses[0, 0]) < max_diff, \
-        "different initial time: {}, {}".format(gt_poses[0, 0], pred_poses[0, 0])
+    # assert np.array_equal(gt_poses[0, 1:], pred_poses[0, 1:]), \
+    #     "different initial pose: {}, {}".format(gt_poses[0, 1:], pred_poses[0, 1:])
 
     gt_times = gt_poses[:, 0].tolist()
     pred_times = pred_poses[:, 0].tolist()
@@ -197,11 +206,14 @@ def align_pose_seq(gt_poses, pred_poses, max_diff=0.01):
     return aligned_gt, aligned_pred, aligned_inds
 
 
-def pose_diff(gt_pose, pred_pose):
-    # Optimize the scaling factor
-    assert np.sum(pred_pose[1:4] ** 2) > 0.00001, \
-        "invalid scale division {}".format(np.sum(pred_pose[1:4] ** 2))
-    scale = np.sum(gt_pose[1:4] * pred_pose[1:4]) / np.sum(pred_pose[1:4] ** 2)
+def pose_diff(gt_pose, pred_pose, ambiguous_scale):
+    if ambiguous_scale:
+        assert np.sum(pred_pose[1:4] ** 2) > 0.00001, \
+            "invalid scale division {}".format(np.sum(pred_pose[1:4] ** 2))
+        # optimize the scaling factor
+        scale = np.sum(gt_pose[1:4] * pred_pose[1:4]) / np.sum(pred_pose[1:4] ** 2)
+    else:
+        scale = 1.
     # translational error
     alignment_error = pred_pose[1:4] * scale - gt_pose[1:4]
     trn_rmse = np.sqrt(np.sum(alignment_error ** 2))

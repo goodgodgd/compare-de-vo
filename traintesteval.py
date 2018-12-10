@@ -212,7 +212,7 @@ def evaluate_drive_subseq(gt_path, pred_path, model, drive, subseq_errors):
         assert (gt_short_seq.shape == (5, 8) and pred_short_seq.shape[1] == 8)
         try:
             # compute error between predicted poses and gt poses
-            sseq_err = pu.compute_pose_error(gt_short_seq, pred_short_seq)
+            sseq_err = pu.compute_pose_error(gt_short_seq, pred_short_seq, ambiguous_scale=True)
             for pose_err in sseq_err:
                 subseq_errors = subseq_errors.append(
                     dict(zip(sseq_cols, [model, drive, i, pose_err[0], pose_err[1], pose_err[2]])),
@@ -227,14 +227,12 @@ def evaluate_subseq_errors(errors_df):
     # groupby: src_cols[:3] = ["model", "drive", "subseq_begin"]
 
     # average translational error of short sequences
-    atess = errors_df.groupby(by=src_cols[:3]).agg({"trn_err": "mean"})
-    atess = atess.groupby(by=src_cols[:2]).agg({"trn_err": ["mean", "std"]})
+    atess = errors_df.groupby(by=src_cols[:2]).agg({"trn_err": ["mean", "std"]})
     atess_cols = ["te_{}".format(bottom) for top, bottom in atess.columns.values.tolist()]
     atess.columns = atess_cols
 
     # average rotational error of short sequences
-    aress = errors_df.groupby(by=src_cols[:3]).agg({"rot_err": "mean"})
-    aress = aress.groupby(by=src_cols[:2]).agg({"rot_err": ["mean", "std"]})
+    aress = errors_df.groupby(by=src_cols[:2]).agg({"rot_err": ["mean", "std"]})
     aress_cols = ["re_{}".format(bottom) for top, bottom in aress.columns.values.tolist()]
     aress.columns = aress_cols
 
@@ -264,6 +262,7 @@ def eval_traj(opt):
     pred_paths = {model: os.path.join(opt.pred_out_dir, model, "pose") for model in model_names}
     traj_cols = ["model", "drive", "interval", "gtind", "trn_err", "rot_err"]
     traj_errors = pd.DataFrame(columns=traj_cols)
+    print(pred_paths)
 
     for model, pred_path in pred_paths.items():
         if not os.path.isdir(os.path.join(gt_path, eval_drive[0])):
@@ -273,12 +272,14 @@ def eval_traj(opt):
         for drive in eval_drive:
             # reconstruct full trajectory based on predictd relative poses
             # orb sequences are not fully predicted, so they would not be reconstructed
-            if "orb" not in model:
-                pu.reconstruct_traj_and_save(gt_path, pred_path, drive, opt.seq_length)
-                traj_errors = evaluate_drive_traj(gt_path, pred_path, model, drive, traj_errors)
+            if "orb" in model:
+                pu.reconstruct_traj_and_save(gt_path, pred_path, drive, 2, True)
+            else:
+                pu.reconstruct_traj_and_save(gt_path, pred_path, drive, opt.seq_length, False)
+            traj_errors = evaluate_drive_traj(gt_path, pred_path, model, drive, traj_errors)
 
     traj_eval_result = evaluate_traj_errors(traj_errors)
-    traj_eval_result.to_csv(os.path.join(opt.eval_out_dir, "pose_eval.csv"))
+    traj_eval_result.to_csv(os.path.join(opt.eval_out_dir, "traj_eval.csv"))
 
 
 def evaluate_drive_traj(gt_path, pred_path, model, drive, traj_errors):
@@ -288,16 +289,19 @@ def evaluate_drive_traj(gt_path, pred_path, model, drive, traj_errors):
     assert os.path.exists(gt_file)
     gt_traj = pu.read_pose_file(gt_file)
 
-    pred_file_pattern = os.path.join(pred_path, "{}_full*".format(drive))
+    pred_file_pattern = os.path.join(pred_path, "{}_full_recon*".format(drive))
     pred_files = glob.glob(pred_file_pattern)
 
     for pred_file in pred_files:
         pred_traj = pu.read_pose_file(pred_file)
+
         pred_file = os.path.basename(pred_file)
         interval = pred_file.replace(".", "_").split("_")[-2]
         try:
             # compute error between predicted poses and gt poses
-            traj_err = pu.compute_pose_error(gt_traj, pred_traj)
+            # reconstructed trajectory has physical scale
+            traj_err = pu.compute_pose_error(gt_traj, pred_traj, ambiguous_scale=False)
+            print("evaluate_drive_traj", model, drive, interval, len(traj_err))
             for pose_err in traj_err:
                 traj_errors = traj_errors.append(
                     dict(zip(traj_cols, [model, drive, int(interval), pose_err[0], pose_err[1], pose_err[2]])),
@@ -313,27 +317,15 @@ def evaluate_traj_errors(errors_df):
     # groupby: src_cols[:3] = ["model", "drive", "interval"]
     grpkeys = src_cols[:3]
 
-    # average translational error
-    ate = errors_df.groupby(by=grpkeys).agg({"trn_err": ["mean", "std"]})
-    ate = ate.rename({"trn_err": "atess"})
+    # average translational error grouped by intervals
+    ateitv = errors_df.groupby(by=grpkeys).agg({"trn_err": ["mean", "std"]})
+    ateitv_cols = ["te_{}".format(bottom) for top, bottom in ateitv.columns.values.tolist()]
+    ateitv.columns = ateitv_cols
 
-    # # average rotational error of short sequences
-    # aress = errors_df.groupby(by=src_cols[:3]).agg({"rot_err": "mean"})
-    # aress = aress.groupby(by=src_cols[:2]).agg({"rot_err": "mean"})
-    # aress = aress.rename({"rot_err": "aress"})
-    #
-    # grp_cols = [src_cols[i] for i in (0, 1, 3)]
-    # # average translational error of specific frames in short sequences
-    # atefr = errors_df.groupby(by=grp_cols).agg({"trn_err": "mean"})
-    # atefr = atefr.unstack(level=-1)
-    # atefr_cols = ["te{}f".format(bottom) for top, bottom in atefr.columns.values.tolist()]
-    # atefr.columns = atefr_cols
-    #
-    # # average rotational error of specific frames in short sequences
-    # arefr = errors_df.groupby(by=grp_cols).agg({"rot_err": "mean"})
-    # arefr = arefr.unstack(level=-1)
-    # arefr_cols = ["re{}f".format(bottom) for top, bottom in arefr.columns.values.tolist()]
-    # arefr.columns = arefr_cols
-    #
-    # pose_eval_res = pd.concat([ate, aress, atefr, arefr], axis=1)
-    # return pose_eval_res
+    # average rotational error grouped by intervals
+    areitv = errors_df.groupby(by=grpkeys).agg({"rot_err": ["mean", "std"]})
+    areitv_cols = ["re_{}".format(bottom) for top, bottom in areitv.columns.values.tolist()]
+    areitv.columns = areitv_cols
+
+    traj_eval_res = pd.concat([ateitv, areitv], axis=1)
+    return traj_eval_res
