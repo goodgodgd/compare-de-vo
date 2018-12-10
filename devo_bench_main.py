@@ -1,5 +1,6 @@
 # TODO: code reference
-from traintesteval import *
+import tensorflow as tf
+import traintesteval as tte
 from models.geonet.geonet_model import GeoNetModel
 from model_operator import GeoNetOperator
 
@@ -61,7 +62,7 @@ def main(_):
     # set subordinative variables
     if opt.mode == "train_rigid":
         opt.seq_length = 3
-    elif opt.mode in ["pred_pose", "eval_pose"]:
+    elif opt.mode in ["pred_pose", "eval_pose", "eval_traj"]:
         opt.seq_length = 5
     elif opt.mode == "pred_depth":
         opt.seq_length = 1
@@ -90,15 +91,17 @@ def main(_):
     model_op = GeoNetOperator(opt, net_model) if opt.model_name == "geonet" else None
 
     if opt.mode == 'train_rigid':
-        train(opt, model_op)
+        tte.train(opt, model_op)
     elif opt.mode == 'pred_depth':
-        pred_depth(opt, net_model)
+        tte.pred_depth(opt, net_model)
     elif opt.mode == 'pred_pose':
-        pred_pose(opt, net_model)
+        tte.pred_pose(opt, net_model)
     elif opt.mode == 'eval_depth':
-        eval_depth(opt)
+        tte.eval_depth(opt)
     elif opt.mode == 'eval_pose':
-        eval_pose(opt)
+        tte.eval_pose(opt)
+    elif opt.mode == 'eval_traj':
+        tte.eval_traj(opt)
 
 
 if __name__ == '__main__':

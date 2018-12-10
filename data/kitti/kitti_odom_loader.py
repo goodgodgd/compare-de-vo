@@ -9,7 +9,7 @@ import scipy.misc
 module_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if module_path not in sys.path: sys.path.append(module_path)
 from abstracts import DataLoader
-from data.kitti.kitti_pose_utils import mat2euler, format_pose_seq_TUM
+from data.kitti.kitti_pose_utils import mat2euler, format_poses_tum
 from data.kitti.kitti_intrin_utils import read_odom_calib_file, scale_intrinsics
 
 
@@ -92,7 +92,7 @@ class KittiOdomLoader(DataLoader):
             # add short pose sequence
             pose_seq = pose_full_gt[tgt_idx - half_index:tgt_idx + half_index + 1]
             time_seq = time_stamps[tgt_idx - half_index:tgt_idx + half_index + 1]
-            pose_seq = format_pose_seq_TUM(pose_seq, time_seq)
+            pose_seq = format_poses_tum(pose_seq, time_seq)
             assert pose_seq.shape == (5, 8), "pose_seq shape: {}, {}"\
                 .format(pose_seq.shape[0], pose_seq.shape[1])
             pose_short_seqs.append(pose_seq)

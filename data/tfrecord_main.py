@@ -18,9 +18,9 @@ opt = parser.parse_args()
 def make_to_tfrecords():
     print("dataset_dir={}\ndump_root={}".format(opt.dataset_dir, opt.dump_root))
     tfmaker = KittiTfrdMaker(opt)
+    tfmaker.make('test')
     tfmaker.make('train')
     tfmaker.make('val')
-    tfmaker.make('test')
 
 
 if __name__ == "__main__":

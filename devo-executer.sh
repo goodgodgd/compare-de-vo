@@ -1,9 +1,9 @@
 #! /bin/bash
 
 ### MANUAL SET: where "kitti_raw_data" and "kitti_odom" exist
-RAW_DATA_ROOT="/media/ian/My Passport"
+RAW_DATA_ROOT="/media/ian/iandata"
 ### MANUAL SET: where all the results saved
-OUTPUT_PATH="/home/ian/workplace/DevoBench/devo_bench_data"
+OUTPUT_PATH="/media/ian/iandata/devo_bench_data"
 ### MANUAL SET: model name
 MODEL_NAME="geonet"
 
@@ -21,8 +21,8 @@ PREDICT_OUTPUT="$OUTPUT_PATH/predicts"
 EVALUATION_OUTPUT="$OUTPUT_PATH/evaluation"
 
 ### MANUAL SET: checkpoints for evaluation
-POSE_EVAL_CKPT="$MODEL_CKPT_DIR/geonet_posenet/model"
-DEPTH_EVAL_CKPT="$MODEL_CKPT_DIR/geonet_depthnet/model"
+POSE_EVAL_CKPT="$MODEL_CKPT_DIR/posenet/model"
+DEPTH_EVAL_CKPT="$MODEL_CKPT_DIR/depthnet/model"
 
 
 if [ "$1" == "--help" ]
@@ -144,6 +144,13 @@ elif [ "$1" == "eval_pose" ]
 then
 	python devo_bench_main.py \
 		--mode="eval_pose" \
+		--pred_out_dir="$PREDICT_OUTPUT" \
+		--eval_out_dir="$EVALUATION_OUTPUT"
+
+elif [ "$1" == "eval_traj" ]
+then
+	python devo_bench_main.py \
+		--mode="eval_traj" \
 		--pred_out_dir="$PREDICT_OUTPUT" \
 		--eval_out_dir="$EVALUATION_OUTPUT"
 

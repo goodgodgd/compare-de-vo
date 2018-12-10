@@ -58,7 +58,9 @@ def pred_pose(opt, net_model):
                 pred_pose_batch = pred["pose"]
                 pred_pose_batch = np.insert(pred_pose_batch, target_ind, np.zeros((1, 6)), axis=1)
                 for b in range(opt.batch_size):
-                    pred_pose_tum = pu.format_pose_seq_TUM(pred_pose_batch[b, :, :], gt_pose_batch[b, :, 0])
+                    # geonet was trained for inverse pose
+                    pred_pose_tum = pu.format_poses_tum(pred_pose_batch[b, :, :],
+                                                        gt_pose_batch[b, :, 0], inv=True)
                     pred_poses.append(pred_pose_tum)
                     gt_poses.append(gt_pose_batch[b, :, :])
             except tf.errors.OutOfRangeError:
@@ -69,9 +71,6 @@ def pred_pose(opt, net_model):
     # one can evaluate pose errors here but we save results and evaluate it in the evaluation step
     pu.save_pose_result(pred_poses, frames, opt.pred_out_dir, opt.model_name, opt.seq_length)
     # save_pose_result(gt_poses, opt.pred_out_dir, "ground_truth", frames, opt.seq_length)
-
-    seq_ids = [frame.split(" ")[0] for frame in frames]
-    seq_ids = list(set(seq_ids))
 
 
 def pred_depth(opt, net_model):
@@ -178,8 +177,6 @@ def eval_pose(opt):
     pred_paths = {model: os.path.join(opt.pred_out_dir, model, "pose") for model in model_names}
     sseq_cols = ["model", "drive", "subseq_begin", "subseq_index", "trn_err", "rot_err"]
     subseq_errors = pd.DataFrame(columns=sseq_cols)
-    traj_cols = ["model", "drive", "gtind", "trn_err", "rot_err"]
-    traj_errors = pd.DataFrame(columns=traj_cols)
 
     for model, pred_path in pred_paths.items():
         if not os.path.isdir(os.path.join(gt_path, eval_drive[0])):
@@ -187,20 +184,14 @@ def eval_pose(opt):
             continue
 
         for drive in eval_drive:
-            subseq_errors = evaluate_drive(gt_path, pred_path, model, drive, subseq_errors)
+            subseq_errors = evaluate_drive_subseq(gt_path, pred_path, model, drive, subseq_errors)
 
-            # reconstruct full trajectory based on predictd relative poses
-            # orb sequences are not fully predicted, so they would not be reconstructed
-            if "orb" not in model:
-                pu.reconstruct_traj_and_save(gt_path, pred_path, drive, opt.seq_length)
-                # drive_traj_err = pu.evaluate_recon_traj(opt.pred_out_dir, gt_dir, model, drive)
-
-    pose_eval_result = evaluate_from_errors(subseq_errors)
+    pose_eval_result = evaluate_subseq_errors(subseq_errors)
     print(pose_eval_result)
     pose_eval_result.to_csv(os.path.join(opt.eval_out_dir, "pose_eval.csv"))
 
 
-def evaluate_drive(gt_path, pred_path, model, drive, subseq_errors):
+def evaluate_drive_subseq(gt_path, pred_path, model, drive, subseq_errors):
     sseq_cols = list(subseq_errors)
     gt_files = glob.glob(os.path.join(gt_path, drive, "*.txt"))
     gt_files.sort()
@@ -231,18 +222,21 @@ def evaluate_drive(gt_path, pred_path, model, drive, subseq_errors):
     return subseq_errors
 
 
-def evaluate_from_errors(errors_df):
+def evaluate_subseq_errors(errors_df):
     src_cols = list(errors_df)
+    # groupby: src_cols[:3] = ["model", "drive", "subseq_begin"]
 
     # average translational error of short sequences
     atess = errors_df.groupby(by=src_cols[:3]).agg({"trn_err": "mean"})
-    atess = atess.groupby(by=src_cols[:2]).agg({"trn_err": "mean"})
-    atess = atess.rename({"trn_err": "atess"})
+    atess = atess.groupby(by=src_cols[:2]).agg({"trn_err": ["mean", "std"]})
+    atess_cols = ["te_{}".format(bottom) for top, bottom in atess.columns.values.tolist()]
+    atess.columns = atess_cols
 
     # average rotational error of short sequences
     aress = errors_df.groupby(by=src_cols[:3]).agg({"rot_err": "mean"})
-    aress = aress.groupby(by=src_cols[:2]).agg({"rot_err": "mean"})
-    aress = aress.rename({"rot_err": "aress"})
+    aress = aress.groupby(by=src_cols[:2]).agg({"rot_err": ["mean", "std"]})
+    aress_cols = ["re_{}".format(bottom) for top, bottom in aress.columns.values.tolist()]
+    aress.columns = aress_cols
 
     grp_cols = [src_cols[i] for i in (0, 1, 3)]
     # average translational error of specific frames in short sequences
@@ -261,3 +255,85 @@ def evaluate_from_errors(errors_df):
     return pose_eval_res
 
 
+def eval_traj(opt):
+    eval_drive = ["09", "10"]
+    gt_dir = "ground_truth"
+    model_names = os.listdir(opt.pred_out_dir)
+    model_names.remove(gt_dir)
+    gt_path = os.path.join(opt.pred_out_dir, gt_dir, "pose")
+    pred_paths = {model: os.path.join(opt.pred_out_dir, model, "pose") for model in model_names}
+    traj_cols = ["model", "drive", "interval", "gtind", "trn_err", "rot_err"]
+    traj_errors = pd.DataFrame(columns=traj_cols)
+
+    for model, pred_path in pred_paths.items():
+        if not os.path.isdir(os.path.join(gt_path, eval_drive[0])):
+            print("No pose prediction sequences from model {}".format(model))
+            continue
+
+        for drive in eval_drive:
+            # reconstruct full trajectory based on predictd relative poses
+            # orb sequences are not fully predicted, so they would not be reconstructed
+            if "orb" not in model:
+                pu.reconstruct_traj_and_save(gt_path, pred_path, drive, opt.seq_length)
+                traj_errors = evaluate_drive_traj(gt_path, pred_path, model, drive, traj_errors)
+
+    traj_eval_result = evaluate_traj_errors(traj_errors)
+    traj_eval_result.to_csv(os.path.join(opt.eval_out_dir, "pose_eval.csv"))
+
+
+def evaluate_drive_traj(gt_path, pred_path, model, drive, traj_errors):
+    traj_cols = list(traj_errors)
+    # gt trajectory file must exists
+    gt_file = os.path.join(gt_path, "{}_full.txt".format(drive))
+    assert os.path.exists(gt_file)
+    gt_traj = pu.read_pose_file(gt_file)
+
+    pred_file_pattern = os.path.join(pred_path, "{}_full*".format(drive))
+    pred_files = glob.glob(pred_file_pattern)
+
+    for pred_file in pred_files:
+        pred_traj = pu.read_pose_file(pred_file)
+        pred_file = os.path.basename(pred_file)
+        interval = pred_file.replace(".", "_").split("_")[-2]
+        try:
+            # compute error between predicted poses and gt poses
+            traj_err = pu.compute_pose_error(gt_traj, pred_traj)
+            for pose_err in traj_err:
+                traj_errors = traj_errors.append(
+                    dict(zip(traj_cols, [model, drive, int(interval), pose_err[0], pose_err[1], pose_err[2]])),
+                    ignore_index=True)
+        except ValueError as ve:
+            print(ve)
+
+    return traj_errors
+
+
+def evaluate_traj_errors(errors_df):
+    src_cols = list(errors_df)
+    # groupby: src_cols[:3] = ["model", "drive", "interval"]
+    grpkeys = src_cols[:3]
+
+    # average translational error
+    ate = errors_df.groupby(by=grpkeys).agg({"trn_err": ["mean", "std"]})
+    ate = ate.rename({"trn_err": "atess"})
+
+    # # average rotational error of short sequences
+    # aress = errors_df.groupby(by=src_cols[:3]).agg({"rot_err": "mean"})
+    # aress = aress.groupby(by=src_cols[:2]).agg({"rot_err": "mean"})
+    # aress = aress.rename({"rot_err": "aress"})
+    #
+    # grp_cols = [src_cols[i] for i in (0, 1, 3)]
+    # # average translational error of specific frames in short sequences
+    # atefr = errors_df.groupby(by=grp_cols).agg({"trn_err": "mean"})
+    # atefr = atefr.unstack(level=-1)
+    # atefr_cols = ["te{}f".format(bottom) for top, bottom in atefr.columns.values.tolist()]
+    # atefr.columns = atefr_cols
+    #
+    # # average rotational error of specific frames in short sequences
+    # arefr = errors_df.groupby(by=grp_cols).agg({"rot_err": "mean"})
+    # arefr = arefr.unstack(level=-1)
+    # arefr_cols = ["re{}f".format(bottom) for top, bottom in arefr.columns.values.tolist()]
+    # arefr.columns = arefr_cols
+    #
+    # pose_eval_res = pd.concat([ate, aress, atefr, arefr], axis=1)
+    # return pose_eval_res

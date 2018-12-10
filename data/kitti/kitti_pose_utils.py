@@ -39,7 +39,7 @@ def reconstruct_traj_and_save(gt_path, pred_path, drive, subseq_len):
     assert os.path.isfile(gt_pose_file) and os.path.isdir(pred_pose_path),\
         "files: {}, {}".format(gt_pose_file, pred_pose_path)
 
-    gt_traj = read_poses(gt_pose_file)
+    gt_traj = read_pose_file(gt_pose_file)
     traj_len = gt_traj.shape[0]
     prinitv = traj_len//5
     print("gt traj shape", gt_traj.shape)
@@ -62,11 +62,11 @@ def reconstruct_traj_and_save(gt_path, pred_path, drive, subseq_len):
 
         recon_traj = reconstruct_abs_poses(pred_rel_poses, gt_rel_poses)
         print("reconstructed trajectory\n", recon_traj[0:-1:prinitv//itv, 1:4])
-        filename = os.path.join(pred_path, "{}_full_recon_{:02d}".format(drive, itv))
+        filename = os.path.join(pred_path, "{}_full_recon_{:02d}.txt".format(drive, itv))
         np.savetxt(filename, recon_traj, fmt="%.6f")
 
 
-def read_poses(pose_file):
+def read_pose_file(pose_file):
     poses = []
     with open(pose_file, 'r') as f:
         lines = f.readlines()
@@ -81,7 +81,7 @@ def read_relative_poses(pose_path, itv):
     file_list.sort()
     rel_poses = [np.array([0, 0, 0, 0, 0, 0, 0, 1], dtype=np.float32)]
     for i in range(0, len(file_list), itv):
-        sub_seq = read_poses(file_list[i])
+        sub_seq = read_pose_file(file_list[i])
         rel_poses.append(sub_seq[itv])
 
     rel_poses = np.array(rel_poses)
@@ -150,26 +150,26 @@ def multiply_poses(base_pose, other_pose):
 
 
 # ========== for eval_pose ==========
-def compute_pose_error(gt_sseq, pred_sseq):
-    gt_sseq, pred_sseq, ali_inds = align_pose_seq(gt_sseq, pred_sseq)
+def compute_pose_error(gt_poses, pred_poses):
+    gt_poses, pred_poses, ali_inds = align_pose_seq(gt_poses, pred_poses)
 
-    assert gt_sseq.shape == pred_sseq.shape, "after alignment, gt:{}, {} == pred:{}, {}"\
-        .format(gt_sseq.shape[0], gt_sseq.shape[1], pred_sseq.shape[0], pred_sseq.shape[1])
-    seq_len = gt_sseq.shape[0]
+    assert gt_poses.shape == pred_poses.shape, "after alignment, gt:{}, {} == pred:{}, {}"\
+        .format(gt_poses.shape[0], gt_poses.shape[1], pred_poses.shape[0], pred_poses.shape[1])
+    seq_len = gt_poses.shape[0]
     err_result = []
     for si in range(1, seq_len):
-        te, re = pose_diff(gt_sseq[si], pred_sseq[si])
+        te, re = pose_diff(gt_poses[si], pred_poses[si])
         err_result.append([ali_inds[si], te, re])
         assert ali_inds[si] > 0, "{} {}".format(si, ali_inds)
     return err_result
 
 
-def align_pose_seq(gt_sseq, pred_sseq, max_diff=0.01):
-    assert abs(gt_sseq[0, 0] - pred_sseq[0, 0]) < max_diff, \
-        "different initial time: {}, {}".format(gt_sseq[0, 0], pred_sseq[0, 0])
+def align_pose_seq(gt_poses, pred_poses, max_diff=0.01):
+    assert abs(gt_poses[0, 0] - pred_poses[0, 0]) < max_diff, \
+        "different initial time: {}, {}".format(gt_poses[0, 0], pred_poses[0, 0])
 
-    gt_times = gt_sseq[:, 0].tolist()
-    pred_times = pred_sseq[:, 0].tolist()
+    gt_times = gt_poses[:, 0].tolist()
+    pred_times = pred_poses[:, 0].tolist()
     potential_matches = [(abs(gt - pt), gt, gi, pt, pi)
                          for gi, gt in enumerate(gt_times)
                          for pi, pt in enumerate(pred_times)
@@ -190,8 +190,8 @@ def align_pose_seq(gt_sseq, pred_sseq, max_diff=0.01):
     aligned_gt = []
     aligned_pred = []
     for gi, pi in matches:
-        aligned_gt.append(gt_sseq[gi])
-        aligned_pred.append(pred_sseq[pi])
+        aligned_gt.append(gt_poses[gi])
+        aligned_pred.append(pred_poses[pi])
     aligned_gt = np.array(aligned_gt)
     aligned_pred = np.array(aligned_pred)
     return aligned_gt, aligned_pred, aligned_inds
@@ -216,19 +216,19 @@ def pose_diff(gt_pose, pred_pose):
 
 
 # ========== for data loader ==========
-def format_pose_seq_TUM(poses, times):
+def format_poses_tum(poses, times, inv: bool=False):
     if isinstance(poses, list):
-        tum_poses = format_pose_list(poses, times)
+        tum_poses = format_pose_list_tum(poses, times, inv)
     elif isinstance(poses, np.ndarray):
         if not isinstance(times, np.ndarray):
             times = np.array(times)
-        tum_poses = format_npy_array(poses, times)
+        tum_poses = format_pose_npy_tum(poses, times, inv)
     else:
         tum_poses = None
     return tum_poses
 
 
-def format_pose_list(poses, times):
+def format_pose_list_tum(poses, times, inv: bool):
     # poses: list of [tx, ty, tz, rx, ry, rz]
     pose_seq = []
     # First frame as the origin
@@ -236,7 +236,10 @@ def format_pose_list(poses, times):
     for pose, time in zip(poses, times):
         this_pose = euler_pose_to_mat(pose)
         # this line is corrected from "geonet"
+        # below line is correct way to compute relative pose of this_pose from first_pose
         this_pose = np.matmul(np.linalg.inv(first_pose), this_pose)
+        # however geonet was trained in inverse way, the inverse of inverse pose would be used
+        this_pose = this_pose if not inv else np.linalg.inv(this_pose)
         tx = this_pose[0, 3]
         ty = this_pose[1, 3]
         tz = this_pose[2, 3]
@@ -248,11 +251,11 @@ def format_pose_list(poses, times):
     return pose_seq
 
 
-def format_npy_array(poses, times):
+def format_pose_npy_tum(poses, times, inv: bool):
     pose_list = []
     for i in range(poses.shape[0]):
         pose_list.append(poses[i, :])
-    return format_pose_list(pose_list, times.tolist())
+    return format_pose_list_tum(pose_list, times.tolist(), inv)
 
 
 
