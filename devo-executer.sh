@@ -109,7 +109,7 @@ then
 		--tfrecords_dir="$KITTI_ODOM_TFRECORD" \
 		--checkpoint_dir="$NEW_TRAIN_MODEL" \
 		--learning_rate=0.0002 \
-		--seq_length=3 \
+		--seq_length=5 \
 		--batch_size=4 \
 		--train_epochs=50 
 

@@ -1,7 +1,12 @@
-# TODO: code reference
+import os
+import sys
 import tensorflow as tf
-import traintesteval as tte
+
+module_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if module_path not in sys.path: sys.path.append(module_path)
+from data.tfrecord_feeder import dataset_feeder
 from models.geonet.geonet_model import GeoNetModel
+from model_operator import GeoNetOperator
 
 
 flags = tf.app.flags
@@ -75,36 +80,35 @@ def set_dependent_opts():
     opt.add_posenet = opt.add_flownet and opt.flownet_type == 'residual' \
                       or opt.mode in ['train_rigid', 'pred_pose']
 
-    if "kitti" in opt.dataset_name.lower():
+    if "KITTI" in opt.dataset_name:
         opt.img_height = 128
         opt.img_width = 416
 
-    print("important opt", "\ntfrecord", opt.tfrecords_dir, "\ncheckpoint", opt.checkpoint_dir,
-          "\nbatch", opt.batch_size, ", img_height", opt.img_height, ", img_width", opt.img_width,
-          "\ntrain_epoch", opt.train_epochs, ", learning reate", opt.learning_rate)
-
 
 def main(_):
+    data_root = "/media/ian/iandata/devo_bench_data"
+    opt.mode = "train_rigid"
+    opt.model_name = "geonet"
+    opt.tfrecords_dir = os.path.join(data_root, "tfrecords", "kitti_odom")
+    opt.checkpoint_dir = os.path.join(data_root, "ckpts", opt.model_name, "train")
+    opt.seq_length = 5
+    opt.batch_size = 4
+    opt.train_epochs = 50
     set_dependent_opts()
+    print("important opt", "\ntfrecord", opt.tfrecords_dir, "\ncheckpoint", opt.checkpoint_dir,
+          "\nbatch", opt.batch_size, ", img_height", opt.img_height, ", img_width", opt.img_width,
+          "\ntrain_epoch", opt.train_epochs, ", learning reate", opt.learning_rate,
+          "\nnum_scales", opt.num_scales, "\nseq_length", opt.seq_length)
 
-    # set model class and model operator
-    net_model = None
-    if opt.mode in ['train_rigid', 'pred_depth', 'pred_pose']:
-        if opt.model_name == "geonet":
-            net_model = GeoNetModel(opt)
+    features = dataset_feeder(opt, "train")
+    src_image_stack = features["sources"]
+    tgt_image = features["target"]
+    gtruth = features["gt"]
+    intrinsics_ms = features["intrinsics_ms"]
+    print("tgt_image.shape", tgt_image.get_shape())
 
-    if opt.mode == 'train_rigid':
-        tte.train(opt, net_model)
-    elif opt.mode == 'pred_depth':
-        tte.pred_depth(opt, net_model)
-    elif opt.mode == 'pred_pose':
-        tte.pred_pose(opt, net_model)
-    elif opt.mode == 'eval_depth':
-        tte.eval_depth(opt)
-    elif opt.mode == 'eval_pose':
-        tte.eval_pose(opt)
-    elif opt.mode == 'eval_traj':
-        tte.eval_traj(opt)
+    geonet = GeoNetModel(opt)
+    geonet.build_model(tgt_image, src_image_stack, intrinsics_ms)
 
 
 if __name__ == '__main__':

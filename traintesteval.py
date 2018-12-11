@@ -9,13 +9,17 @@ import pandas as pd
 from data.tfrecord_feeder import dataset_feeder
 import data.kitti.kitti_pose_utils as pu
 import data.kitti.kitti_depth_utils as du
+from model_operator import GeoNetOperator
 
 
 # ========== TRAIN ==========
-def train(opt, model_op):
+def train(opt, net_model):
+    tf.enable_eager_execution()
     set_random_seed()
     if not os.path.exists(opt.checkpoint_dir):
         os.makedirs(opt.checkpoint_dir)
+
+    model_op = GeoNetOperator(opt, net_model) if opt.model_name == "geonet" else None
 
     def data_feeder():
         return dataset_feeder(opt, "train")

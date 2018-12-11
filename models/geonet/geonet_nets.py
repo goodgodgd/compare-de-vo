@@ -126,6 +126,13 @@ def build_resnet50(inputs, get_pred, is_training, var_scope):
             conv4 = resblock(conv3,     256, 6) # H/32 - 1024D
             conv5 = resblock(conv4,     512, 3) # H/64 - 2048D
 
+            print("``````````build_resnet50: inputs", inputs.get_shape())
+            print("``````````build_resnet50: pool1", pool1.get_shape())
+            print("``````````build_resnet50: conv2", conv2.get_shape())
+            print("``````````build_resnet50: conv3", conv3.get_shape())
+            print("``````````build_resnet50: conv4", conv4.get_shape())
+            print("``````````build_resnet50: conv5", conv5.get_shape())
+
             skip1 = conv1
             skip2 = pool1
             skip3 = conv2
