@@ -6,6 +6,8 @@ RAW_DATA_ROOT="/media/ian/iandata"
 OUTPUT_PATH="/media/ian/iandata/devo_bench_data"
 ### MANUAL SET: model name
 MODEL_NAME="geonet"
+### MANUAL SET: encoder name ["resnet50, "inceptionv4", "vgg16"]
+ENCODER="inceptionv4"
 
 KITTI_ODOM_RAW="$RAW_DATA_ROOT/data_odometry"
 KITTI_ODOM_STACKED="$OUTPUT_PATH/kitti_odom"
@@ -106,6 +108,7 @@ then
 	python devo_bench_main.py \
 		--mode="train_rigid" \
 		--model_name="$MODEL_NAME" \
+		--net_encoder="$ENCODER" \
 		--tfrecords_dir="$KITTI_ODOM_TFRECORD" \
 		--checkpoint_dir="$NEW_TRAIN_MODEL" \
 		--learning_rate=0.0002 \

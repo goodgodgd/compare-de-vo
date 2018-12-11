@@ -5,7 +5,7 @@ import importlib
 
 flags = tf.app.flags
 flags.DEFINE_string("mode",                         "",    "(train_rigid, train_flow) or (pred_depth, pred_pose, test_flow)")
-flags.DEFINE_string("model_name",                   "",    "geonet or sfmlearner")
+flags.DEFINE_string("model_name",              "geonet",    "geonet")
 flags.DEFINE_string("dataset_name",             "KITTI",    "KITTI")
 flags.DEFINE_string("tfrecords_dir",                "",    "tfrecords directory")
 flags.DEFINE_string("eval_out_dir",                 "",    "evaluation result directory")
@@ -25,7 +25,7 @@ flags.DEFINE_float("alpha_recon_image",           0.85,    "Alpha weight between
 flags.DEFINE_integer("save_ckpt_freq",            5000,    "Save the checkpoint model every save_ckpt_freq iterations")
 
 # #### Configurations about DepthNet & PoseNet of GeoNet #####
-flags.DEFINE_string("dispnet_encoder",      "resnet50",    "Type of encoder for dispnet, vgg or resnet50")
+flags.DEFINE_string("net_encoder",      "resnet50",    "Type of encoder for dispnet, vgg or resnet50")
 flags.DEFINE_boolean("scale_normalize",          False,    "Spatially normalize depth prediction")
 flags.DEFINE_float("rigid_warp_weight",            1.0,    "Weight for warping by rigid flow")
 flags.DEFINE_float("disp_smooth_weight",           0.5,    "Weight for disp smoothness")
@@ -58,11 +58,7 @@ opt = flags.FLAGS
 
 def set_dependent_opts():
     # set subordinative variables
-    if opt.mode == "train_rigid":
-        opt.seq_length = 3
-    elif opt.mode in ["pred_pose", "eval_pose", "eval_traj"]:
-        opt.seq_length = 5
-    elif opt.mode == "pred_depth":
+    if opt.mode == "pred_depth":
         opt.seq_length = 1
         opt.batch_size = 1
     opt.num_source = opt.seq_length - 1
@@ -88,13 +84,8 @@ def create_model():
     if opt.mode in ['train_rigid', 'pred_depth', 'pred_pose']:
         print("modelname", opt.model_name)
         if opt.model_name == "geonet":
-            print("geonet")
             from models.geonet.geonet_model import GeoNetModel
             net_model = GeoNetModel(opt)
-        elif opt.model_name == "geonet_inct4":
-            print("geonet_inception")
-            from models.geonet_inct4.geonet_inct4_model import GeoNetInct4Model
-            net_model = GeoNetInct4Model(opt)
     return net_model
 
 

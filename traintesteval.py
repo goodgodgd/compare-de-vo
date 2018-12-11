@@ -16,9 +16,9 @@ from model_operator import GeoNetOperator
 def train(opt, net_model):
     tf.enable_eager_execution()
     set_random_seed()
+    print(opt.checkpoint_dir)
     if not os.path.exists(opt.checkpoint_dir):
         os.makedirs(opt.checkpoint_dir)
-
     model_op = GeoNetOperator(opt, net_model) if opt.model_name == "geonet" else None
 
     def data_feeder():

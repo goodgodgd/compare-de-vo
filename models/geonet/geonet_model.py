@@ -88,7 +88,10 @@ class GeoNetModel(ModelBase):
         self.posenet_inputs = tf.concat([self.tgt_image, self.src_image_stack], axis=3)
         
         # build posenet
-        self.pred_poses = pose_net(opt, self.posenet_inputs)
+        if opt.net_encoder == "inceptionv4":
+            self.pred_poses = pose_net_inceptionv4(opt, self.posenet_inputs)
+        else:
+            self.pred_poses = pose_net(opt, self.posenet_inputs)
 
     def build_rigid_flow_warping(self):
         opt = self.opt

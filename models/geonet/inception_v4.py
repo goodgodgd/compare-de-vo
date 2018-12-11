@@ -20,13 +20,7 @@ As described in http://arxiv.org/abs/1602.07261.
     on Learning
   Christian Szegedy, Sergey Ioffe, Vincent Vanhoucke, Alex Alemi
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import tensorflow as tf
-
-from models.geonet_inct4 import inception_utils
 
 slim = tf.contrib.slim
 
@@ -174,14 +168,10 @@ def inception_v4_base(inputs, final_endpoint='Mixed_7d', scope=None):
     with slim.arg_scope([slim.conv2d, slim.max_pool2d, slim.avg_pool2d],
                         stride=1, padding='SAME'):
 
-      print("inputs", inputs.get_shape())
-
       # 299 x 299 x 3
       net = slim.conv2d(inputs, 32, [3, 3], stride=2,
                         padding='SAME', scope='Conv2d_1a_3x3')
       if add_and_check_final('Conv2d_1a_3x3', net): return net, end_points
-      print("Conv2d_1a_3x3", net.get_shape())
-
       # 149 x 149 x 32
       net = slim.conv2d(net, 32, [3, 3], padding='SAME',
                         scope='Conv2d_2a_3x3')
@@ -199,7 +189,6 @@ def inception_v4_base(inputs, final_endpoint='Mixed_7d', scope=None):
                                  scope='Conv2d_0a_3x3')
         net = tf.concat(axis=3, values=[branch_0, branch_1])
         if add_and_check_final('Mixed_3a', net): return net, end_points
-        print("Mixed_3a", net.get_shape())
 
       # 73 x 73 x 160
       with tf.variable_scope('Mixed_4a'):
@@ -217,7 +206,6 @@ def inception_v4_base(inputs, final_endpoint='Mixed_7d', scope=None):
                                  scope='Conv2d_1a_3x3', stride=2)
         net = tf.concat(axis=3, values=[branch_0, branch_1])
         if add_and_check_final('Mixed_4a', net): return net, end_points
-        print("Mixed_4a", net.get_shape())
 
       # 71 x 71 x 192
       with tf.variable_scope('Mixed_5a'):
@@ -236,7 +224,6 @@ def inception_v4_base(inputs, final_endpoint='Mixed_7d', scope=None):
         block_scope = 'Mixed_5' + chr(ord('b') + idx)
         net = block_inception_a(net, block_scope)
         if add_and_check_final(block_scope, net): return net, end_points
-      print("Mixed_5e", net.get_shape())
 
       # 35 x 35 x 384
       # Reduction-A block
@@ -249,13 +236,11 @@ def inception_v4_base(inputs, final_endpoint='Mixed_7d', scope=None):
         block_scope = 'Mixed_6' + chr(ord('b') + idx)
         net = block_inception_b(net, block_scope)
         if add_and_check_final(block_scope, net): return net, end_points
-      print("Mixed_6h", net.get_shape())
 
       # 17 x 17 x 1024
       # Reduction-B block
       net = block_reduction_b(net, 'Mixed_7a')
       if add_and_check_final('Mixed_7a', net): return net, end_points
-      print("Mixed_7a", net.get_shape())
 
       # 8 x 8 x 1536
       # 3 x Inception-C blocks
