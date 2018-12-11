@@ -5,8 +5,6 @@ import tensorflow as tf
 module_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if module_path not in sys.path: sys.path.append(module_path)
 from data.tfrecord_feeder import dataset_feeder
-from models.geonet.geonet_model import GeoNetModel
-from model_operator import GeoNetOperator
 
 
 flags = tf.app.flags
@@ -85,10 +83,25 @@ def set_dependent_opts():
         opt.img_width = 416
 
 
+def create_model():
+    net_model = None
+    if opt.mode in ['train_rigid', 'pred_depth', 'pred_pose']:
+        print("modelname", opt.model_name)
+        if opt.model_name == "geonet":
+            print("geonet")
+            from models.geonet.geonet_model import GeoNetModel
+            net_model = GeoNetModel(opt)
+        elif opt.model_name == "geonet_inct4":
+            print("geonet_inception")
+            from models.geonet_inct4.geonet_inct4_model import GeoNetInct4Model
+            net_model = GeoNetInct4Model(opt)
+    return net_model
+
+
 def main(_):
+    opt.model_name = "geonet_inct4"
     data_root = "/media/ian/iandata/devo_bench_data"
     opt.mode = "train_rigid"
-    opt.model_name = "geonet"
     opt.tfrecords_dir = os.path.join(data_root, "tfrecords", "kitti_odom")
     opt.checkpoint_dir = os.path.join(data_root, "ckpts", opt.model_name, "train")
     opt.seq_length = 5
@@ -107,7 +120,7 @@ def main(_):
     intrinsics_ms = features["intrinsics_ms"]
     print("tgt_image.shape", tgt_image.get_shape())
 
-    geonet = GeoNetModel(opt)
+    geonet = create_model()
     geonet.build_model(tgt_image, src_image_stack, intrinsics_ms)
 
 

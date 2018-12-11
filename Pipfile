@@ -12,6 +12,7 @@ scipy = "*"
 joblib = "*"
 pillow = "*"
 pandas = "*"
+importlib = "*"
 
 [requires]
 python_version = "3.6"

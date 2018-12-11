@@ -1,8 +1,7 @@
 # TODO: code reference
 import tensorflow as tf
 import traintesteval as tte
-from models.geonet.geonet_model import GeoNetModel
-
+import importlib
 
 flags = tf.app.flags
 flags.DEFINE_string("mode",                         "",    "(train_rigid, train_flow) or (pred_depth, pred_pose, test_flow)")
@@ -84,14 +83,24 @@ def set_dependent_opts():
           "\ntrain_epoch", opt.train_epochs, ", learning reate", opt.learning_rate)
 
 
-def main(_):
-    set_dependent_opts()
-
-    # set model class and model operator
+def create_model():
     net_model = None
     if opt.mode in ['train_rigid', 'pred_depth', 'pred_pose']:
+        print("modelname", opt.model_name)
         if opt.model_name == "geonet":
+            print("geonet")
+            from models.geonet.geonet_model import GeoNetModel
             net_model = GeoNetModel(opt)
+        elif opt.model_name == "geonet_inct4":
+            print("geonet_inception")
+            from models.geonet_inct4.geonet_inct4_model import GeoNetInct4Model
+            net_model = GeoNetInct4Model(opt)
+    return net_model
+
+
+def main(_):
+    set_dependent_opts()
+    net_model = create_model()
 
     if opt.mode == 'train_rigid':
         tte.train(opt, net_model)
