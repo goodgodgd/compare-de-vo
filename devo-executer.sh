@@ -9,7 +9,7 @@ MODEL_NAME="geonet"
 ### MANUAL SET: encoder name ["resnet50, "inceptionv4", "vgg16"]
 ENCODER="inceptionv4"
 
-KITTI_ODOM_RAW="$RAW_DATA_ROOT/data_odometry"
+KITTI_ODOM_RAW="$RAW_DATA_ROOT/kitti_odometry"
 KITTI_ODOM_STACKED="$OUTPUT_PATH/kitti_odom"
 KITTI_ODOM_TFRECORD="$OUTPUT_PATH/tfrecords/kitti_odom"
 
@@ -113,7 +113,7 @@ then
 		--checkpoint_dir="$NEW_TRAIN_MODEL" \
 		--learning_rate=0.0002 \
 		--seq_length=5 \
-		--batch_size=4 \
+		--batch_size=8 \
 		--train_epochs=50 
 
 elif [ "$1" == "pred_depth" ]
@@ -133,7 +133,7 @@ then
 		--model_name="$MODEL_NAME" \
 		--tfrecords_dir="$KITTI_ODOM_TFRECORD" \
 		--init_ckpt_file="$POSE_EVAL_CKPT" \
-		--batch_size=32 \
+		--batch_size=16 \
 		--pred_out_dir="$PREDICT_OUTPUT"
 
 elif [ "$1" == "eval_depth" ]

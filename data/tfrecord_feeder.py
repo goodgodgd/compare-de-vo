@@ -93,14 +93,14 @@ def get_multi_scale_intrinsics(intrinsic, num_scales):
 
 
 # guide line in https://www.tensorflow.org/programmers_guide/datasets#consuming_tfrecord_data
-def dataset_process(dataset, split="train", batch_size=32, train_epochs=1):
-    if split.lower() is "train":
+def dataset_process(dataset, split, batch_size, train_epochs):
+    if split.lower() == "train":
         dataset = dataset.shuffle(buffer_size=5000)
         num_epochs = train_epochs
     else:
         # If testing, only go through the data once.
         num_epochs = 1
-
+    print("========== dataset_feeder num_epochs:", num_epochs)
     dataset = dataset.repeat(num_epochs)
     # drop_remainder: dataset이 끝날때 batch_size 이하로 남은 데이터는 쓰지 않고 버린다
     # -> 항상 일정한 batch_size 유지
