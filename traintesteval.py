@@ -19,7 +19,9 @@ def train(opt, net_model):
     print(opt.checkpoint_dir)
     if not os.path.exists(opt.checkpoint_dir):
         os.makedirs(opt.checkpoint_dir)
-    model_op = GeoNetOperator(opt, net_model) if opt.model_name == "geonet" else None
+
+    model_op = GeoNetOperator(opt, net_model) if "geonet" in opt.model_name else None
+    print(opt.model_name, model_op)
 
     def data_feeder():
         return dataset_feeder(opt, "train")
@@ -74,6 +76,48 @@ def pred_pose(opt, net_model):
     print("output length (gt, pred)", len(gt_poses), len(pred_poses))
     # one can evaluate pose errors here but we save results and evaluate it in the evaluation step
     pu.save_pose_result(pred_poses, frames, opt.pred_out_dir, opt.model_name, opt.seq_length)
+    # save_pose_result(gt_poses, opt.pred_out_dir, "ground_truth", frames, opt.seq_length)
+
+
+def pred_pose_estimator(opt, net_model):
+    tf.enable_eager_execution()
+    print(opt.pred_out_dir)
+    if not os.path.exists(opt.pred_out_dir):
+        os.makedirs(opt.pred_out_dir)
+    model_op = GeoNetOperator(opt, net_model) if opt.model_name == "geonet" else None
+    print("```modelname", opt.model_name)
+
+    # dataset = dataset_feeder(opt, "test")
+
+    def data_feeder():
+        return dataset_feeder(opt, "test")
+
+    # prediction result by estimator.predict() returns results of total dataset
+    # it is not packed in batch size
+    predictions = model_op.predict(data_feeder)
+
+    opt.batch_size = 1
+    dataset = dataset_feeder(opt, "test")
+
+    gt_poses = []
+    pr_poses = []
+    frames = []
+    target_ind = (opt.seq_length - 1)//2
+
+    for i, (feat, pred) in enumerate(zip(dataset, predictions)):
+        frame = bytes(feat["frame_int8"][0]).decode("utf-8")
+        frames.append(frame)
+        gt_pose = feat["gt"][0]
+        pr_pose = pred["pose"]
+        pr_pose = np.insert(pr_pose, target_ind, np.zeros((1, 6)), axis=0)
+        # geonet was trained for inverse pose
+        pr_pose_tum = pu.format_poses_tum(pr_pose, gt_pose[:, 0], inv=True)
+        pr_poses.append(pr_pose_tum)
+        gt_poses.append(gt_pose)
+
+    print("output length (gt, pred)", len(gt_poses), len(pr_poses))
+    # one can evaluate pose errors here but we save results and evaluate it in the evaluation step
+    pu.save_pose_result(gt_poses, frames, opt.pred_out_dir, opt.model_name, opt.seq_length)
     # save_pose_result(gt_poses, opt.pred_out_dir, "ground_truth", frames, opt.seq_length)
 
 

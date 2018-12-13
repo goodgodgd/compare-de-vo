@@ -8,7 +8,8 @@ def dataset_feeder(opt, split):
     # 파일 패턴으로 파일 리스트 입력
     file_pattern = ["{}/*_{}_*.tfrecord".format(opt.tfrecords_dir, split)]
     filenames = tf.gfile.Glob(file_pattern)
-    print("========== dataset_feeder finding tfrecords:", file_pattern, filenames)
+    print("========== dataset_feeder seq_len", opt.seq_length,
+          "finding tfrecords:", file_pattern, filenames)
     dataset = tf.data.TFRecordDataset(filenames)
 
     def parse_example_opt(record):
@@ -100,7 +101,7 @@ def dataset_process(dataset, split, batch_size, train_epochs):
     else:
         # If testing, only go through the data once.
         num_epochs = 1
-    print("========== dataset_feeder num_epochs:", num_epochs)
+    print("========== dataset_feeder num_epochs:", num_epochs, ", batch:", batch_size)
     dataset = dataset.repeat(num_epochs)
     # drop_remainder: dataset이 끝날때 batch_size 이하로 남은 데이터는 쓰지 않고 버린다
     # -> 항상 일정한 batch_size 유지

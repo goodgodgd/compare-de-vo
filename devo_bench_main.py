@@ -76,6 +76,7 @@ def set_dependent_opts():
 
     print("important opt", "\ntfrecord", opt.tfrecords_dir, "\ncheckpoint", opt.checkpoint_dir,
           "\nbatch", opt.batch_size, ", img_height", opt.img_height, ", img_width", opt.img_width,
+          "seq_length", opt.seq_length,
           "\ntrain_epoch", opt.train_epochs, ", learning reate", opt.learning_rate)
 
 
@@ -83,7 +84,7 @@ def create_model():
     net_model = None
     if opt.mode in ['train_rigid', 'pred_depth', 'pred_pose']:
         print("modelname", opt.model_name)
-        if opt.model_name == "geonet":
+        if "geonet" in opt.model_name:
             from models.geonet.geonet_model import GeoNetModel
             net_model = GeoNetModel(opt)
     return net_model
@@ -98,7 +99,7 @@ def main(_):
     elif opt.mode == 'pred_depth':
         tte.pred_depth(opt, net_model)
     elif opt.mode == 'pred_pose':
-        tte.pred_pose(opt, net_model)
+        tte.pred_pose_estimator(opt, net_model)
     elif opt.mode == 'eval_depth':
         tte.eval_depth(opt)
     elif opt.mode == 'eval_pose':

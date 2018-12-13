@@ -5,7 +5,7 @@ RAW_DATA_ROOT="/media/ian/iandata"
 ### MANUAL SET: where all the results saved
 OUTPUT_PATH="/media/ian/iandata/devo_bench_data"
 ### MANUAL SET: model name
-MODEL_NAME="geonet"
+MODEL_NAME="geonet_inct4"
 ### MANUAL SET: encoder name ["resnet50, "inceptionv4", "vgg16"]
 ENCODER="inceptionv4"
 
@@ -123,6 +123,7 @@ then
 		--model_name="$MODEL_NAME" \
 		--tfrecords_dir="$KITTI_EIGEN_TFRECORD" \
 		--init_ckpt_file="$DEPTH_EVAL_CKPT" \
+		--seq_length=3 \
 		--batch_size=1 \
 		--pred_out_dir="$PREDICT_OUTPUT"
 
@@ -133,7 +134,8 @@ then
 		--model_name="$MODEL_NAME" \
 		--tfrecords_dir="$KITTI_ODOM_TFRECORD" \
 		--init_ckpt_file="$POSE_EVAL_CKPT" \
-		--batch_size=16 \
+		--seq_length=5 \
+		--batch_size=4 \
 		--pred_out_dir="$PREDICT_OUTPUT"
 
 elif [ "$1" == "eval_depth" ]
@@ -148,14 +150,16 @@ then
 	python devo_bench_main.py \
 		--mode="eval_pose" \
 		--pred_out_dir="$PREDICT_OUTPUT" \
-		--eval_out_dir="$EVALUATION_OUTPUT"
+		--eval_out_dir="$EVALUATION_OUTPUT" \
+		--seq_length=5
 
 elif [ "$1" == "eval_traj" ]
 then
 	python devo_bench_main.py \
 		--mode="eval_traj" \
 		--pred_out_dir="$PREDICT_OUTPUT" \
-		--eval_out_dir="$EVALUATION_OUTPUT"
+		--eval_out_dir="$EVALUATION_OUTPUT" \
+		--seq_length=5
 
 else
 	echo "invalid option, please type ./devo-executer.sh --help"

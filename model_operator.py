@@ -8,7 +8,10 @@ class ModelOperator:
     def __init__(self, opt, model):
         self.opt = opt
         self.model = model
-        self.estimator = self._create_estimator(opt.checkpoint_dir)
+        if opt.mode == "train_rigid":
+            self.estimator = self._create_estimator(opt.checkpoint_dir)
+        else:
+            self.estimator = self._create_estimator(opt.init_ckpt_file)
 
     def _create_estimator(self, ckpt_path):
         def cnn_model_fn(features, mode):
@@ -26,7 +29,7 @@ class ModelOperator:
         self.estimator.train(input_fn=data_feeder, hooks=logging_hook)
         print("training finished")
 
-    # TODO: TRAIN and EVAL modes are Not tested
+    # TODO: EVAL mode was Not tested
     def evaluate(self, data_feeder, show_log: bool=False):
         # evaluate the model
         logging_hook = self._get_logging_hook(show_log)
@@ -36,8 +39,7 @@ class ModelOperator:
     def predict(self, data_feeder):
         # predict classification result by the model
         pred_result = self.estimator.predict(input_fn=data_feeder)
-        pred_result = list(pred_result)[0]
-        return pred_result
+        return list(pred_result)
 
     def _get_logging_hook(self, show_log):
         if show_log is False:
@@ -60,28 +62,28 @@ class GeoNetOperator(ModelOperator):
 
         self.model.build_model(tgt_image, src_image_stack, intrinsics_ms)
 
-        prediction = None
+        prediction = dict()
         if self.opt.mode == "pred_pose":
-            prediction = self.model.get_pose_pred()
-        elif self.opt.mode == "test_eigen":
-            prediction = self.model.get_depth_pred()
+            prediction["pose"] = self.model.get_pose_pred()
+        elif self.opt.mode == "pred_depth":
+            prediction["depth"] = self.model.get_depth_pred()
+
         # format return type of estimator.predict()
-        predictions = {"prediction": prediction}
         loss = self.model.get_loss()
 
         if mode == tf.estimator.ModeKeys.PREDICT:
-            return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
+            return tf.estimator.EstimatorSpec(mode=mode, predictions=prediction)
 
-        # TODO: TRAIN and EVAL modes are Not tested
         if mode == tf.estimator.ModeKeys.TRAIN:
             # define training operation
             optimizer = tf.train.AdamOptimizer(self.opt.learning_rate, 0.9)
             train_op = optimizer.minimize(loss=loss, global_step=tf.train.get_global_step())
             return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
 
+        # TODO: EVAL mode was Not tested
         # Add evaluation metrics (for EVAL mode)
         if mode == tf.estimator.ModeKeys.EVAL:
-            eval_metric_ops = predictions
+            eval_metric_ops = prediction
             return tf.estimator.EstimatorSpec(mode=mode, eval_metric_ops=eval_metric_ops)
 
     @staticmethod

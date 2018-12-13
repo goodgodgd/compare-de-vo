@@ -63,9 +63,7 @@ def reconstruct_traj_and_save(gt_path, pred_path, drive, subseq_len, read_full: 
         # align two pose lists by time
         gt_abs_poses, pred_rel_poses, ali_inds = align_pose_seq(gt_traj, pred_rel_poses)
         # convert gt trajectory to relative poses between two adjcent poses
-        print("gt abs poses\n", gt_abs_poses[:3, 1:4])
         gt_rel_poses = create_rel_poses(gt_abs_poses)
-        print("gt rel poses\n", gt_rel_poses[:3, 1:4])
         assert gt_rel_poses.shape == pred_rel_poses.shape
 
         recon_traj = reconstruct_abs_poses(pred_rel_poses, gt_rel_poses)
