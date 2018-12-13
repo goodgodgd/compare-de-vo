@@ -30,7 +30,7 @@ def save_pose_result(pose_seqs, frames, output_root, modelname, seq_length):
         half_seq = (seq_length - 1) // 2
         filename = os.path.join(save_path, seq_id, "{:06d}.txt".format(int(frame_id)-half_seq))
         np.savetxt(filename, poseseq, fmt="%06f")
-    print("pose results were saved!!")
+    print("pose results were saved!! at", save_path)
 
 
 def reconstruct_traj_and_save(gt_path, pred_path, drive, subseq_len, read_full: bool):
@@ -205,13 +205,13 @@ def align_pose_seq(gt_poses, pred_poses, max_diff=0.01):
 
 
 def pose_diff(gt_pose, pred_pose, ambiguous_scale):
+    scale = 1
     if ambiguous_scale:
-        assert np.sum(pred_pose[1:4] ** 2) > 0.00001, \
-            "invalid scale division {}".format(np.sum(pred_pose[1:4] ** 2))
-        # optimize the scaling factor
-        scale = np.sum(gt_pose[1:4] * pred_pose[1:4]) / np.sum(pred_pose[1:4] ** 2)
-    else:
-        scale = 1.
+        if np.sum(pred_pose[1:4] ** 2) > 0.00001:
+            # optimize the scaling factor
+            scale = np.sum(gt_pose[1:4] * pred_pose[1:4]) / np.sum(pred_pose[1:4] ** 2)
+        else:
+            "invalid scale division {}, scale=1".format(np.sum(pred_pose[1:4] ** 2))
     # translational error
     alignment_error = pred_pose[1:4] * scale - gt_pose[1:4]
     trn_rmse = np.sqrt(np.sum(alignment_error ** 2))

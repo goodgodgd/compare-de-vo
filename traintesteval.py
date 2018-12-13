@@ -52,9 +52,7 @@ def pred_pose(opt, net_model):
     target_ind = (opt.seq_length - 1)//2
 
     with tf.Session() as sess:
-        print("```````init ckpt", opt.init_ckpt_file)
         saver.restore(sess, opt.init_ckpt_file)
-        print("```````````")
         for i in range(1000000):
             try:
                 inputs = sess.run(dataset_iter)
@@ -83,13 +81,11 @@ def pred_pose(opt, net_model):
 
 def pred_pose_estimator(opt, net_model):
     tf.enable_eager_execution()
+    print("========== pred_pose_estimator with eager execution")
     print(opt.pred_out_dir)
     if not os.path.exists(opt.pred_out_dir):
         os.makedirs(opt.pred_out_dir)
-    model_op = GeoNetOperator(opt, net_model) if opt.model_name == "geonet" else None
-    print("```modelname", opt.model_name)
-
-    # dataset = dataset_feeder(opt, "test")
+    model_op = GeoNetOperator(opt, net_model) if "geonet" in opt.model_name else None
 
     def data_feeder():
         return dataset_feeder(opt, "test")
@@ -107,6 +103,7 @@ def pred_pose_estimator(opt, net_model):
     target_ind = (opt.seq_length - 1)//2
 
     for i, (feat, pred) in enumerate(zip(dataset, predictions)):
+        # assuming batch size = 1
         frame = bytes(feat["frame_int8"][0]).decode("utf-8")
         frames.append(frame)
         gt_pose = feat["gt"][0]
@@ -119,7 +116,7 @@ def pred_pose_estimator(opt, net_model):
 
     print("output length (gt, pred)", len(gt_poses), len(pr_poses))
     # one can evaluate pose errors here but we save results and evaluate it in the evaluation step
-    pu.save_pose_result(gt_poses, frames, opt.pred_out_dir, opt.model_name, opt.seq_length)
+    pu.save_pose_result(pr_poses, frames, opt.pred_out_dir, opt.model_name, opt.seq_length)
     # save_pose_result(gt_poses, opt.pred_out_dir, "ground_truth", frames, opt.seq_length)
 
 
@@ -176,14 +173,14 @@ def eval_depth(opt):
                                    else depth_eval_total.append(result, ignore_index=True)
 
     print("depth evaluation data:\n", depth_eval_total.head())
-    depth_eval_total.to_csv(os.path.join(opt.eval_out_dir, "depth_eval_all.csv"))
+    depth_eval_total.to_csv(os.path.join(opt.eval_out_dir, "depth_eval_all.csv"), float_format="%.6f")
     depth_eval_mean = depth_eval_total.groupby(by=["model"]).agg("mean")
     print("depth evaluation result:\n", depth_eval_mean)
-    depth_eval_mean.to_csv(os.path.join(opt.eval_out_dir, "depth_eval.csv"))
+    depth_eval_mean.to_csv(os.path.join(opt.eval_out_dir, "depth_eval.csv"), float_format="%.6f")
 
 
 def evaluate_depth_errors(pred_depths, gt_files, model_name, min_depth, max_depth):
-    columns = ["model", "test_frame", "rms", "log_rms", "abs_rel", "sq_rel", "a1", "a2", "a3"]
+    columns = ["model", "test_frame", "abs_rel", "sq_rel", "rms", "log_rms", "a1", "a2", "a3"]
     depth_eval_result = pd.DataFrame(columns=columns)
 
     for i, gt_file in enumerate(gt_files):
@@ -238,7 +235,7 @@ def eval_pose(opt):
 
     pose_eval_result = evaluate_subseq_errors(subseq_errors)
     print(pose_eval_result)
-    pose_eval_result.to_csv(os.path.join(opt.eval_out_dir, "pose_eval.csv"))
+    pose_eval_result.to_csv(os.path.join(opt.eval_out_dir, "pose_eval.csv"), float_format="%.6f")
 
 
 def evaluate_drive_subseq(gt_path, pred_path, model, drive, subseq_errors):
@@ -275,6 +272,9 @@ def evaluate_drive_subseq(gt_path, pred_path, model, drive, subseq_errors):
 def evaluate_subseq_errors(errors_df):
     src_cols = list(errors_df)
     # groupby: src_cols[:3] = ["model", "drive", "subseq_begin"]
+
+    # rotation error radian to degree
+    errors_df["rot_err"] = errors_df["rot_err"] / 3.1415926535 * 180
 
     # average translational error of short sequences
     atess = errors_df.groupby(by=src_cols[:2]).agg({"trn_err": ["mean", "std"]})
@@ -329,7 +329,7 @@ def eval_traj(opt):
             traj_errors = evaluate_drive_traj(gt_path, pred_path, model, drive, traj_errors)
 
     traj_eval_result = evaluate_traj_errors(traj_errors)
-    traj_eval_result.to_csv(os.path.join(opt.eval_out_dir, "traj_eval.csv"))
+    traj_eval_result.to_csv(os.path.join(opt.eval_out_dir, "traj_eval.csv"), float_format="%.6f")
 
 
 def evaluate_drive_traj(gt_path, pred_path, model, drive, traj_errors):
@@ -367,12 +367,15 @@ def evaluate_traj_errors(errors_df):
     # groupby: src_cols[:3] = ["model", "drive", "interval"]
     grpkeys = src_cols[:3]
 
+    # rotation error radian to degree
+    errors_df["rot_err"] = errors_df["rot_err"] / 3.1415926535 * 180
+
     # average translational error grouped by intervals
     ateitv = errors_df.groupby(by=grpkeys).agg({"trn_err": ["mean", "std"]})
     ateitv_cols = ["te_{}".format(bottom) for top, bottom in ateitv.columns.values.tolist()]
     ateitv.columns = ateitv_cols
 
-    # average rotational error grouped by intervals
+    # average rotational error grouped by intervals in degrees
     areitv = errors_df.groupby(by=grpkeys).agg({"rot_err": ["mean", "std"]})
     areitv_cols = ["re_{}".format(bottom) for top, bottom in areitv.columns.values.tolist()]
     areitv.columns = areitv_cols

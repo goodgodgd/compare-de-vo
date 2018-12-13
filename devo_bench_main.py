@@ -25,7 +25,7 @@ flags.DEFINE_float("alpha_recon_image",           0.85,    "Alpha weight between
 flags.DEFINE_integer("save_ckpt_freq",            5000,    "Save the checkpoint model every save_ckpt_freq iterations")
 
 # #### Configurations about DepthNet & PoseNet of GeoNet #####
-flags.DEFINE_string("net_encoder",      "resnet50",    "Type of encoder for dispnet, vgg or resnet50")
+flags.DEFINE_string("feat_net",             "resnet50",    "Type of encoder for dispnet, vgg or resnet50")
 flags.DEFINE_boolean("scale_normalize",          False,    "Spatially normalize depth prediction")
 flags.DEFINE_float("rigid_warp_weight",            1.0,    "Weight for warping by rigid flow")
 flags.DEFINE_float("disp_smooth_weight",           0.5,    "Weight for disp smoothness")
@@ -74,10 +74,11 @@ def set_dependent_opts():
         opt.img_height = 128
         opt.img_width = 416
 
-    print("important opt", "\ntfrecord", opt.tfrecords_dir, "\ncheckpoint", opt.checkpoint_dir,
-          "\nbatch", opt.batch_size, ", img_height", opt.img_height, ", img_width", opt.img_width,
-          ", seq_length", opt.seq_length,
-          "\ntrain_epoch", opt.train_epochs, ", learning reate", opt.learning_rate)
+    print("========== important options \ntfrecords_dirs: {} \ncheckpoint_dir: {}\n".
+            format(opt.tfrecords_dir, opt.checkpoint_dir),
+          "batch_size={}, img_height={}, img_width={}, seq_length={}\n".
+            format(opt.batch_size, opt.img_height, opt.img_width, opt.seq_length),
+          "train_epoch={}, learning_rate={}".format(opt.train_epochs, opt.learning_rate))
 
 
 def create_model():
@@ -96,13 +97,17 @@ def create_model():
 def main(_):
     set_dependent_opts()
     net_model = create_model()
+    print("net model", net_model)
 
     if opt.mode == 'train_rigid':
         tte.train(opt, net_model)
     elif opt.mode == 'pred_depth':
         tte.pred_depth(opt, net_model)
     elif opt.mode == 'pred_pose':
-        tte.pred_pose(opt, net_model)
+        if opt.model_name == 'geonet_inct4':
+            tte.pred_pose_estimator(opt, net_model)
+        else:
+            tte.pred_pose(opt, net_model)
     elif opt.mode == 'eval_depth':
         tte.eval_depth(opt)
     elif opt.mode == 'eval_pose':

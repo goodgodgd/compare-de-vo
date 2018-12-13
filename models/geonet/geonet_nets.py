@@ -14,11 +14,11 @@ FLOW_SCALING = 0.1
 
 def disp_net(opt, dispnet_inputs):
     is_training = opt.mode == 'train_rigid'
-    if opt.net_encoder == 'vgg':
+    if opt.feat_net == 'vgg':
         return build_vgg(dispnet_inputs, get_disp_vgg, is_training, 'depth_net')
-    elif opt.net_encoder == 'resnet50':
+    elif opt.feat_net == 'resnet50':
         return build_resnet50(dispnet_inputs, get_disp_resnet50, is_training, 'depth_net')
-    elif opt.net_encoder == 'inceptionv4':
+    elif opt.feat_net == 'inceptionv4':
         return build_inceptionv4(dispnet_inputs, get_disp_resnet50, is_training, 'depth_net')
 
 

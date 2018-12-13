@@ -36,7 +36,7 @@ flags.DEFINE_integer("add_dispnet",                  1,    "whether dispnet is i
 flags.DEFINE_integer("add_posenet",                  1,    "whether posenet is included in model")
 
 # #### Configurations about DepthNet & PoseNet of GeoNet #####
-flags.DEFINE_string("net_encoder",      "resnet50",    "Type of encoder for dispnet, vgg or resnet50")
+flags.DEFINE_string("feat_net",      "resnet50",    "Type of encoder for dispnet, vgg or resnet50")
 flags.DEFINE_boolean("scale_normalize",          False,    "Spatially normalize depth prediction")
 flags.DEFINE_float("rigid_warp_weight",            1.0,    "Weight for warping by rigid flow")
 flags.DEFINE_float("disp_smooth_weight",           0.5,    "Weight for disp smoothness")

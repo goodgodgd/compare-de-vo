@@ -1,7 +1,7 @@
 import numpy as np
 
-srcfile = "/home/ian/workplace/DevoBench/devo_bench_data/inv_depths_baseline.npy"
-dstfile = "/home/ian/workplace/DevoBench/devo_bench_data/depths.npy"
+srcfile = "/home/ian/workplace/DevoBench/devo_bench_data/predicts/deepvofeat/depth/inv_depths_full-nyu.npy"
+dstfile = "/home/ian/workplace/DevoBench/devo_bench_data/predicts/deepvofeat/depth/kitti_eigen_depth_predictions.npy"
 
 inv_depth = np.load(srcfile)
 

@@ -90,7 +90,7 @@ class GeoNetModel(ModelBase):
         
         # build posenet
         self.pred_poses = pose_net(opt, self.posenet_inputs)
-        # if opt.net_encoder == "inceptionv4":
+        # if opt.feat_net == "inceptionv4":
         #     self.pred_poses = pose_net_inceptionv4(opt, self.posenet_inputs)
         # else:
         #     self.pred_poses = pose_net(opt, self.posenet_inputs)

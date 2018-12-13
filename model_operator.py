@@ -68,11 +68,11 @@ class GeoNetOperator(ModelOperator):
         elif self.opt.mode == "pred_depth":
             prediction["depth"] = self.model.get_depth_pred()
 
-        # format return type of estimator.predict()
-        loss = self.model.get_loss()
-
         if mode == tf.estimator.ModeKeys.PREDICT:
             return tf.estimator.EstimatorSpec(mode=mode, predictions=prediction)
+
+        # format return type of estimator.predict()
+        loss = self.model.get_loss()
 
         if mode == tf.estimator.ModeKeys.TRAIN:
             # define training operation

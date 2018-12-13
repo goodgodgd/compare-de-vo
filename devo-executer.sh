@@ -6,9 +6,9 @@ RAW_DATA_ROOT="/media/ian/My Passport"
 #OUTPUT_PATH="/media/ian/iandata/devo_bench_data"
 OUTPUT_PATH="/home/ian/workplace/DevoBench/devo_bench_data"
 ### MANUAL SET: model name
-MODEL_NAME="sfmlearner"
+MODEL_NAME="geonet_inct4"
 ### MANUAL SET: encoder name ["resnet50, "inceptionv4", "vgg16"]
-ENCODER="inceptionv4"
+FEATURE_NET="inceptionv4"
 
 KITTI_ODOM_RAW="$RAW_DATA_ROOT/kitti_odometry"
 KITTI_ODOM_STACKED="$OUTPUT_PATH/kitti_odom"
@@ -109,7 +109,7 @@ then
 	python devo_bench_main.py \
 		--mode="train_rigid" \
 		--model_name="$MODEL_NAME" \
-		--net_encoder="$ENCODER" \
+		--feat_net="$FEATURE_NET" \
 		--tfrecords_dir="$KITTI_ODOM_TFRECORD" \
 		--checkpoint_dir="$NEW_TRAIN_MODEL" \
 		--learning_rate=0.0002 \

@@ -29,7 +29,7 @@ flags.DEFINE_float("alpha_recon_image",           0.85,    "Alpha weight between
 flags.DEFINE_integer("save_ckpt_freq",            5000,    "Save the checkpoint model every save_ckpt_freq iterations")
 
 # #### Configurations about DepthNet & PoseNet of GeoNet #####
-flags.DEFINE_string("net_encoder",      "resnet50",    "Type of encoder for dispnet, vgg or resnet50")
+flags.DEFINE_string("feat_net",      "resnet50",    "Type of encoder for dispnet, vgg or resnet50")
 flags.DEFINE_boolean("scale_normalize",          False,    "Spatially normalize depth prediction")
 flags.DEFINE_float("rigid_warp_weight",            1.0,    "Weight for warping by rigid flow")
 flags.DEFINE_float("disp_smooth_weight",           0.5,    "Weight for disp smoothness")
