@@ -52,7 +52,9 @@ def pred_pose(opt, net_model):
     target_ind = (opt.seq_length - 1)//2
 
     with tf.Session() as sess:
+        print("```````init ckpt", opt.init_ckpt_file)
         saver.restore(sess, opt.init_ckpt_file)
+        print("```````````")
         for i in range(1000000):
             try:
                 inputs = sess.run(dataset_iter)

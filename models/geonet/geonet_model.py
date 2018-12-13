@@ -41,7 +41,8 @@ class GeoNetModel(ModelBase):
                 if opt.flow_consistency_weight > 0:
                     self.build_flow_consistency()
 
-        self.build_losses()
+        if 'train' in opt.mode:
+            self.build_losses()
 
     def get_loss(self):
         return self.total_loss

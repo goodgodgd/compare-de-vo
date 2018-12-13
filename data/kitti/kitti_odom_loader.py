@@ -64,6 +64,9 @@ class KittiOdomLoader(DataLoader):
     def generate_pose_snippets(dataset_dir, seq_id, seq_length):
         pose_file = os.path.join(dataset_dir, 'poses', '{:02d}.txt'.format(seq_id))
         pose_full_gt = []
+        # TODO: do not inverse in pose_full_gt,
+        #  but inverse in pose_seq = format_poses_tum(pose_seq, time_seq)
+        #  and save pose_full_gt in tum format as 0x_full.txt
         with open(pose_file, 'r') as pf:
             for poseline in pf:
                 pose = np.array([float(s) for s in poseline.rstrip().split(' ')]).reshape((3, 4))
@@ -74,6 +77,7 @@ class KittiOdomLoader(DataLoader):
         pose_full_gt = np.array(pose_full_gt)
         full_seq_length, posesz = pose_full_gt.shape
         assert posesz == 6
+        # np.savetxt("tmp_gt_poses.txt", pose_full_gt, fmt="%.06f")
 
         time_file = os.path.join(dataset_dir, 'sequences', '{:02d}'.format(seq_id), 'times.txt')
         with open(time_file, 'r') as tf:
