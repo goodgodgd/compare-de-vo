@@ -11,11 +11,11 @@ MODEL_NAME="geonet_inct4"
 FEATURE_NET="inceptionv4"
 
 KITTI_ODOM_RAW="$RAW_DATA_ROOT/kitti_odometry"
-KITTI_ODOM_STACKED="$OUTPUT_PATH/kitti_odom"
+KITTI_ODOM_STACKED="$OUTPUT_PATH/srcdata/kitti_odom"
 KITTI_ODOM_TFRECORD="$OUTPUT_PATH/tfrecords/kitti_odom"
 
 KITTI_EIGEN_RAW="$RAW_DATA_ROOT/kitti_raw_data"
-KITTI_EIGEN_STACKED="$OUTPUT_PATH/kitti_raw_eigen"
+KITTI_EIGEN_STACKED="$OUTPUT_PATH/srcdata/kitti_raw_eigen"
 KITTI_EIGEN_TFRECORD="$OUTPUT_PATH/tfrecords/kitti_raw_eigen"
 
 MODEL_CKPT_DIR="$OUTPUT_PATH/ckpts/$MODEL_NAME"

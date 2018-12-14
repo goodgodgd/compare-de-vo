@@ -74,7 +74,7 @@ def main(_):
         opt.seq_length = 1
         opt.num_source = 2
 
-    dataset = dataset_feeder(opt, "test", opt.seq_length)
+    dataset = dataset_feeder(opt, "test")
     # geonet = GeoNetModel(opt)
     # model_op = GeoNetOperator(opt, geonet)
 
