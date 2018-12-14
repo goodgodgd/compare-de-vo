@@ -3,12 +3,11 @@
 ### MANUAL SET: where "kitti_raw_data" and "kitti_odom" exist
 RAW_DATA_ROOT="/media/ian/My Passport"
 ### MANUAL SET: where all the results saved
-#OUTPUT_PATH="/media/ian/iandata/devo_bench_data"
 OUTPUT_PATH="/home/ian/workplace/DevoBench/devo_bench_data"
-### MANUAL SET: model name
-MODEL_NAME="geonet_inct4"
+### MANUAL SET: model name ["geonet", "sfmlearner"]
+MODEL_NAME="geonet"
 ### MANUAL SET: encoder name ["resnet50, "inceptionv4", "vgg16"]
-FEATURE_NET="inceptionv4"
+FEATURE_NET="resnet50"
 
 KITTI_ODOM_RAW="$RAW_DATA_ROOT/kitti_odometry"
 KITTI_ODOM_STACKED="$OUTPUT_PATH/srcdata/kitti_odom"
@@ -113,8 +112,10 @@ then
 		--tfrecords_dir="$KITTI_ODOM_TFRECORD" \
 		--checkpoint_dir="$NEW_TRAIN_MODEL" \
 		--learning_rate=0.0002 \
-		--seq_length=5 \
+		--seq_length=3 \
 		--batch_size=8 \
+		--img_height=128 \
+		--img_width=416 \
 		--train_epochs=50 
 
 elif [ "$1" == "pred_depth" ]
@@ -126,6 +127,8 @@ then
 		--init_ckpt_file="$DEPTH_EVAL_CKPT" \
 		--seq_length=3 \
 		--batch_size=1 \
+		--img_height=128 \
+		--img_width=416 \
 		--pred_out_dir="$PREDICT_OUTPUT"
 
 elif [ "$1" == "pred_pose" ]
@@ -137,6 +140,8 @@ then
 		--init_ckpt_file="$POSE_EVAL_CKPT" \
 		--seq_length=5 \
 		--batch_size=4 \
+		--img_height=128 \
+		--img_width=416 \
 		--pred_out_dir="$PREDICT_OUTPUT"
 
 elif [ "$1" == "eval_depth" ]
