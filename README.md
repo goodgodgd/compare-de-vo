@@ -13,7 +13,7 @@ This work was developed in or with
 - CUDA 9.0 
 
 To use this repo, just type below in terminal
-```
+```bash
 pip install pipenv
 git clone https://github.com/goodgodgd/vode-bench.git
 cd vode-bench
@@ -43,13 +43,45 @@ Other than tfrecords, DEVO dataset has all we need to study deep learning based 
 ## 3. Tools
 
 To use funtionalities of this benchmark, `./devo_executer.sh` is almost all you need.
-```
+```bash
 cd path/to/repo
 pipenv shell
-./devo_executer.sh [options]
+./devo_executer.sh [option]
 ```
+The previous works let users to type commands with long~~~~ options like  (no offense)
+```bash
+python geonet_main.py --mode=train_rigid --dataset_dir=/path/to/formatted/data/ --checkpoint_dir=/path/to/save/ckpts/ --learning_rate=0.0002 --seq_length=3 --batch_size=4 --max_steps=350000 
+```
+Typing this long command was annoying to me, so I wrote a script `devo_executer.sh` using internal variables. As the options and variables are saved in the script, you don't have to type all the options every time you run something. I simplified options and the detailed options can be edited in the script.
+
 To see what options there are, `./devo_executer.sh --help`.  
 Before running the options, you have to set path variables in the script.
 - RAW_DATA_ROOT: where "kitti_raw_data"(KITTI raw dataset) and "kitti_odom"(KITTI odometry dataset) dirs exist
 - OUTPUT_PATH: the dataset dir downloaded and extracted in 2.
 - MODEL_NAME: model name, upto now, the valid options are "geonet" or "sfmlearner"
+
+If you 
+1. setup and activated the environment
+2. dowloaded and extracted the dataset, 
+3. and set the path variables,  
+
+then enjoy the benchmark.  
+
+Here are available options, step by step
+1. prepare_paths: make required dirs under `OUTPUT_PATH`
+2. prepare_kitti_eigen: prepare stacked images and gt depth data from kitti raw dataset
+3. prepare_kitti_odom: prepare stacked images and gt pose data from kitti odom dataset
+4. make_tfrecord_eigen: create tfrecord files from the results of prepare_kitti_eigen
+5. make_tfrecord_odom: create tfrecord files from the results of prepare_kitti_odom
+6. train_rigid: train pose and depth prediction model
+7. pred_depth: predict depths from test data and save them
+8. pred_pose: predict poses from test data and save them. The predicted poses are in TUM dataset format and poses of only 5 frame sequences.
+9. eval_depth: compute performance indices to evaluate depth prediction results
+10. eval_pose: compute performance indices to evaluate pose prediction results
+11. eval_traj: to evaluate trajectory estimation performance, reconstruct full trajectries from 5 frame sequence poses and evaluate the accuracy of trajectories.
+
+Note that if the dataset in 2 includes all the results of the steps above. So you can start from any step.
+
+## Create New Model
+
+describe it soon.

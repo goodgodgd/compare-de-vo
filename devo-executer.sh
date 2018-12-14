@@ -39,6 +39,8 @@ then
 	echo "train_rigid : train pose and depth prediction model"
 	echo "pred_depth : predict depths from test data and save them"
 	echo "pred_pose : predict poses from test data and save them"
+	echo "eval_pose: compute performance indices to evaluate pose prediction results"
+	echo "eval_traj: to evaluate trajectory estimation performance, reconstruct full trajectries from 5 frame sequence poses and evaluate the accuracy of trajectories."
 
 elif [ "$1" == "prepare_paths" ]
 then
