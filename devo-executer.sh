@@ -3,7 +3,7 @@
 ### MANUAL SET: where "kitti_raw_data" and "kitti_odom" exist
 RAW_DATA_ROOT="/media/ian/iandata"
 ### MANUAL SET: where all the results saved
-OUTPUT_PATH="/media/ian/iandata/devo_bench_data1"
+OUTPUT_PATH="/media/ian/iandata/devo_bench_data"
 ### MANUAL SET: model name ["geonet", "sfmlearner"]
 MODEL_NAME="geonet"
 ### MANUAL SET: encoder name ["resnet50, "inceptionv4", "vgg16"]

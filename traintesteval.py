@@ -6,12 +6,12 @@ import glob
 import cv2
 import pandas as pd
 
-from data.tfrecord_feeder import dataset_feeder
+from models.tfrecord_feeder import dataset_feeder
 import utils.pred_utils as ru
 import utils.pose_utils as pu
 import utils.eval_utils as eu
 import utils.traj_recon as tu
-from model_operator import GeoNetOperator
+from models.model_operator import NetEstimator
 
 
 # ========== TRAIN ==========
@@ -22,7 +22,7 @@ def train(opt, net_model):
     if not os.path.exists(opt.checkpoint_dir):
         os.makedirs(opt.checkpoint_dir)
 
-    model_op = GeoNetOperator(opt, net_model) if "geonet" in opt.model_name else None
+    model_op = NetEstimator(opt, net_model) if "geonet" in opt.model_name else None
     print(opt.model_name, model_op)
 
     def data_feeder():
@@ -87,7 +87,7 @@ def pred_pose_estimator(opt, net_model):
     print(opt.pred_out_dir)
     if not os.path.exists(opt.pred_out_dir):
         os.makedirs(opt.pred_out_dir)
-    model_op = GeoNetOperator(opt, net_model) if "geonet" in opt.model_name else None
+    model_op = NetEstimator(opt, net_model) if "geonet" in opt.model_name else None
 
     def data_feeder():
         return dataset_feeder(opt, "test")

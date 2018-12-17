@@ -51,7 +51,7 @@ class ModelOperator:
         raise NotImplementedError()
 
 
-class GeoNetOperator(ModelOperator):
+class NetEstimator(ModelOperator):
     def __init__(self, opt, model):
         super().__init__(opt, model)
 
