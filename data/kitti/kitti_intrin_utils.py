@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import cv2
 
 
 def read_intrinsics_raw(dataset_dir, date, cam_id):
@@ -26,25 +25,6 @@ def read_raw_calib_file(filepath):
             except ValueError:
                 pass
     return data
-
-
-def read_file_data(data_root, filename):
-    date, drive, cam, _, frame_id = filename.split("/")
-#         camera_id = filename[-1]   # 2 is left, 3 is right
-    vel = '{}/{}/velodyne_points/data/{}.bin'.format(date, drive, frame_id[:10])
-    img_file = os.path.join(data_root, filename)
-    num_probs = 0
-
-    if os.path.isfile(img_file):
-        gt_file = os.path.join(data_root, vel)
-        gt_calib = os.path.join(data_root, date)
-        im_size = cv2.imread(img_file).shape[:2]
-        cam_id = cam[-2:]
-        return gt_file, gt_calib, im_size, cam_id
-    else:
-        num_probs += 1
-        print('{} missing'.format(img_file))
-        return [], [], [], []
 
 
 def read_odom_calib_file(filepath, cid=2):
