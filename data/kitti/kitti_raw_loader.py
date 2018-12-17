@@ -11,7 +11,7 @@ module_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__
 if module_path not in sys.path: sys.path.append(module_path)
 from abstracts import DataLoader
 from data.kitti.velodyne_to_depthmap import generate_depth_map
-from data.kitti.kitti_intrin_utils import read_intrinsics_raw, scale_intrinsics
+import data.kitti.intrinsic_utils as iu
 
 
 class KittiRawLoader(DataLoader):
@@ -127,7 +127,7 @@ class KittiRawLoader(DataLoader):
         for date in self.date_list:
             intrinsics[date] = dict()
             for cid in cam_ids:
-                intrinsics[date][cid] = read_intrinsics_raw(self.dataset_dir, date, cid)
+                intrinsics[date][cid] = iu.read_intrinsics_raw(self.dataset_dir, date, cid)
         return intrinsics
 
     # ========================================
@@ -163,7 +163,7 @@ class KittiRawLoader(DataLoader):
         # dirname(e.g. 2011_09_26_drive_0001_sync), camera_id(e.g. 02), frame_id(e.g. 0000000001)
         tgt_drive, tgt_cid, tgt_frame_id = frames[tgt_idx].split(' ')
         date = tgt_drive[:10]
-        intrinsics = scale_intrinsics(self.intrinsics[date][tgt_cid], zoom_x, zoom_y)
+        intrinsics = iu.scale_intrinsics(self.intrinsics[date][tgt_cid], zoom_x, zoom_y)
         gt_depth = self.load_depth_map(frames[tgt_idx]) if is_test else None
         example = dict()
         example['image_seq'] = image_seq

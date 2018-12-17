@@ -9,8 +9,8 @@ import scipy.misc
 module_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if module_path not in sys.path: sys.path.append(module_path)
 from abstracts import DataLoader
-from data.kitti.kitti_pose_utils import mat2euler, format_poses_tum
-from data.kitti.kitti_intrin_utils import read_odom_calib_file, scale_intrinsics
+import utils.pose_utils as pu
+import data.kitti.intrinsic_utils as iu
 
 
 class KittiOdomLoader(DataLoader):
@@ -72,7 +72,7 @@ class KittiOdomLoader(DataLoader):
                 pose = np.array([float(s) for s in poseline.rstrip().split(' ')]).reshape((3, 4))
                 rot = np.linalg.inv(pose[:, :3])
                 tran = -np.dot(rot, pose[:, 3].transpose())
-                rz, ry, rx = mat2euler(rot)
+                rz, ry, rx = pu.mat2euler(rot)
                 pose_full_gt.append(tran.tolist() + [rx, ry, rz])
         pose_full_gt = np.array(pose_full_gt)
         full_seq_length, posesz = pose_full_gt.shape
@@ -96,7 +96,7 @@ class KittiOdomLoader(DataLoader):
             # add short pose sequence
             pose_seq = pose_full_gt[tgt_idx - half_index:tgt_idx + half_index + 1]
             time_seq = time_stamps[tgt_idx - half_index:tgt_idx + half_index + 1]
-            pose_seq = format_poses_tum(pose_seq, time_seq)
+            pose_seq = pu.format_poses_tum(pose_seq, time_seq)
             assert pose_seq.shape == (5, 8), "pose_seq shape: {}, {}"\
                 .format(pose_seq.shape[0], pose_seq.shape[1])
             pose_short_seqs.append(pose_seq)
@@ -135,7 +135,7 @@ class KittiOdomLoader(DataLoader):
         tgt_drive, tgt_frame_id = frames[tgt_idx].split(' ')
         example = dict()
         example['image_seq'] = image_seq
-        example['intrinsics'] = scale_intrinsics(self.intrinsics[int(tgt_drive)], zoom_x, zoom_y)
+        example['intrinsics'] = iu.scale_intrinsics(self.intrinsics[int(tgt_drive)], zoom_x, zoom_y)
         example['gt'] = gtruths[tgt_idx]
         example['folder_name'] = tgt_drive
         example['file_name'] = tgt_frame_id
@@ -161,6 +161,6 @@ class KittiOdomLoader(DataLoader):
 
     def load_intrinsics(self, drive):
         calib_file = os.path.join(self.dataset_dir, 'sequences', '%s/calib.txt' % drive)
-        proj_c2p, _ = read_odom_calib_file(calib_file)
+        proj_c2p, _ = iu.read_odom_calib_file(calib_file)
         intrinsics = proj_c2p[:3, :3]
         return intrinsics

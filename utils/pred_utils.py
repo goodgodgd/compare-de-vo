@@ -36,8 +36,9 @@ def save_gt_depths(depths, output_root):
 
 
 def save_pred_depths(depths, output_root, modelname):
+    assert os.path.isdir(output_root), "save_pred_depths: Dir Not Found, {}".format(output_root)
     if not os.path.isdir(os.path.join(output_root, modelname)):
-        raise FileNotFoundError()
+        os.makedirs(os.path.join(output_root, modelname))
 
     save_path = os.path.join(output_root, modelname, "depth")
     if not os.path.isdir(save_path):

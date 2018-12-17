@@ -1,9 +1,9 @@
 #! /bin/bash
 
 ### MANUAL SET: where "kitti_raw_data" and "kitti_odom" exist
-RAW_DATA_ROOT="/media/ian/My Passport"
+RAW_DATA_ROOT="/media/ian/iandata"
 ### MANUAL SET: where all the results saved
-OUTPUT_PATH="/home/ian/workplace/DevoBench/devo_bench_data"
+OUTPUT_PATH="/media/ian/iandata/devo_bench_data1"
 ### MANUAL SET: model name ["geonet", "sfmlearner"]
 MODEL_NAME="geonet"
 ### MANUAL SET: encoder name ["resnet50, "inceptionv4", "vgg16"]
