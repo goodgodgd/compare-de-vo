@@ -568,7 +568,7 @@ def test_main():
     print(euler_pose_to_mat([1, 2, 3, 0, 0, 0.5]))
     pose = np.array([0., 1., 2., 3., 0, 0, np.sin(ang/2), np.cos(ang/2)])
     print(quat_pose_to_mat(pose))
-    predict_root = "/home/ian/workplace/DevoBench/devo_bench_data/predicts"
+    predict_root = "/home/ian/workplace/VodeBench/vode_bench_data/predicts"
     reconstruct_traj_and_save(predict_root, "ground_truth", "geonet", 5, ["09", "10"])
 
 

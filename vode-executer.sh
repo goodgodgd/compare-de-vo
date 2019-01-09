@@ -3,7 +3,7 @@
 ### MANUAL SET: where "kitti_raw_data" and "kitti_odom" exist
 RAW_DATA_ROOT="/media/ian/My Passport"
 ### MANUAL SET: where all the results saved
-OUTPUT_PATH="/home/ian/workplace/DevoBench/devo_bench_data"
+OUTPUT_PATH="/home/ian/workplace/VodeBench/vode_bench_data"
 ### MANUAL SET: model name ["geonet", "sfmlearner"]
 MODEL_NAME="geonet"
 ### MANUAL SET: encoder name ["resnet50, "inceptionv4", "vgg16"]
@@ -107,7 +107,7 @@ then
 
 elif [ "$1" == "train_rigid" ]
 then
-	python devo_bench_main.py \
+	python vode_bench_main.py \
 		--mode="train_rigid" \
 		--model_name="$MODEL_NAME" \
 		--feat_net="$FEATURE_NET" \
@@ -122,7 +122,7 @@ then
 
 elif [ "$1" == "pred_depth" ]
 then
-	python devo_bench_main.py \
+	python vode_bench_main.py \
 		--mode="pred_depth" \
 		--model_name="$MODEL_NAME" \
 		--tfrecords_dir="$KITTI_EIGEN_TFRECORD" \
@@ -135,7 +135,7 @@ then
 
 elif [ "$1" == "pred_pose" ]
 then
-	python devo_bench_main.py \
+	python vode_bench_main.py \
 		--mode="pred_pose" \
 		--model_name="$MODEL_NAME" \
 		--tfrecords_dir="$KITTI_ODOM_TFRECORD" \
@@ -148,14 +148,14 @@ then
 
 elif [ "$1" == "eval_depth" ]
 then
-	python devo_bench_main.py \
+	python vode_bench_main.py \
 		--mode="eval_depth" \
 		--pred_out_dir="$PREDICT_OUTPUT" \
 		--eval_out_dir="$EVALUATION_OUTPUT"
 
 elif [ "$1" == "eval_pose" ]
 then
-	python devo_bench_main.py \
+	python vode_bench_main.py \
 		--mode="eval_pose" \
 		--pred_out_dir="$PREDICT_OUTPUT" \
 		--eval_out_dir="$EVALUATION_OUTPUT" \
@@ -163,7 +163,7 @@ then
 
 elif [ "$1" == "eval_traj" ]
 then
-	python devo_bench_main.py \
+	python vode_bench_main.py \
 		--mode="eval_traj" \
 		--pred_out_dir="$PREDICT_OUTPUT" \
 		--eval_out_dir="$EVALUATION_OUTPUT" \

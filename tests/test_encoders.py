@@ -100,7 +100,7 @@ def create_model():
 
 def main(_):
     opt.model_name = "geonet_inct4"
-    data_root = "/media/ian/iandata/devo_bench_data"
+    data_root = "/media/ian/iandata/vode_bench_data"
     opt.mode = "train_rigid"
     opt.tfrecords_dir = os.path.join(data_root, "tfrecords", "kitti_odom")
     opt.checkpoint_dir = os.path.join(data_root, "ckpts", opt.model_name, "train")

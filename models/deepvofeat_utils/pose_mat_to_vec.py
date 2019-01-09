@@ -6,7 +6,7 @@ if module_path not in sys.path: sys.path.append(module_path)
 from data.kitti.kitti_pose_utils import mat2euler, format_poses_tum, read_pose_file
 
 
-predicts_path = "/home/ian/workplace/DevoBench/devo_bench_data/predicts"
+predicts_path = "/home/ian/workplace/VodeBench/vode_bench_data/predicts"
 gt_path = predicts_path + "/ground_truth/pose"
 pred_path = predicts_path + "/deepvofeat/pose"
 drives = ["09", "10"]

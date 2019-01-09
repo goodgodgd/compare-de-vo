@@ -45,7 +45,7 @@ def main():
     # set dataset feeder options
     opt = namedtuple("options", "tfrecords_dir batch_size seq_length num_source num_scales "
                                 "img_height img_width train_epochs")
-    opt.tfrecords_dir = "/home/ian/workplace/DevoBench/devo_bench_data/tfrecords/kitti_raw_eigen"
+    opt.tfrecords_dir = "/home/ian/workplace/VodeBench/vode_bench_data/tfrecords/kitti_raw_eigen"
     opt.batch_size = 1
     opt.seq_length = 1
     opt.num_source = opt.seq_length - 1
@@ -64,7 +64,7 @@ def main():
 
     # read predicted depths
     gt_dir = "ground_truth"
-    pred_out_dir = "/home/ian/workplace/DevoBench/devo_bench_data/predicts"
+    pred_out_dir = "/home/ian/workplace/VodeBench/vode_bench_data/predicts"
     model_names = os.listdir(pred_out_dir)
     model_names.remove(gt_dir)
     pred_paths = {model: os.path.join(pred_out_dir, model, "depth") for model in model_names}

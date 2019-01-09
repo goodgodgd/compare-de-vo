@@ -53,7 +53,7 @@ if __name__ == '__main__':
 
     # tf.enable_eager_execution()
 
-    data_root = "/media/ian/iandata/devo_bench_data"
+    data_root = "/media/ian/iandata/vode_bench_data"
     opt.mode = "train_rigid"
     opt.model_name = "geonet"
     opt.tfrecords_dir = os.path.join(data_root, "tfrecords", "kitti_odom")
