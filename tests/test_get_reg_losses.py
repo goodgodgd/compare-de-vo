@@ -5,7 +5,7 @@ import tensorflow.contrib.slim as slim
 
 module_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if module_path not in sys.path: sys.path.append(module_path)
-from data.tfrecord_feeder import dataset_feeder
+from models.tfrecord_feeder import dataset_feeder
 
 flags = tf.app.flags
 flags.DEFINE_string("mode",                         "",    "(train_rigid, train_flow) or (pred_depth, pred_pose, test_flow)")

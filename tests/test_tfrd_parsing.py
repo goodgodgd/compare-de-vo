@@ -4,9 +4,9 @@ import tensorflow as tf
 
 module_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if module_path not in sys.path: sys.path.append(module_path)
-from data.tfrecord_feeder import dataset_feeder
+from models.tfrecord_feeder import dataset_feeder
 from models.geonet.geonet_model import GeoNetModel
-from model_operator import GeoNetOperator
+from model_operator import NetEstimator
 
 
 flags = tf.app.flags
@@ -76,7 +76,7 @@ def main(_):
 
     dataset = dataset_feeder(opt, "test")
     # geonet = GeoNetModel(opt)
-    # model_op = GeoNetOperator(opt, geonet)
+    # model_op = NetEstimator(opt, geonet)
 
     if tf.executing_eagerly():
         for i, features in enumerate(dataset):

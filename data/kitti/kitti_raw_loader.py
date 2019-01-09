@@ -5,12 +5,13 @@ import numpy as np
 from glob import glob
 import os
 import scipy.misc
+import cv2
 
 module_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if module_path not in sys.path: sys.path.append(module_path)
 from abstracts import DataLoader
-from data.kitti.kitti_depth_utils import generate_depth_map
-from data.kitti.kitti_intrin_utils import read_intrinsics_raw, read_file_data, scale_intrinsics
+from data.kitti.velodyne_to_depthmap import generate_depth_map
+import data.kitti.intrinsic_utils as iu
 
 
 class KittiRawLoader(DataLoader):
@@ -126,7 +127,7 @@ class KittiRawLoader(DataLoader):
         for date in self.date_list:
             intrinsics[date] = dict()
             for cid in cam_ids:
-                intrinsics[date][cid] = read_intrinsics_raw(self.dataset_dir, date, cid)
+                intrinsics[date][cid] = iu.read_intrinsics_raw(self.dataset_dir, date, cid)
         return intrinsics
 
     # ========================================
@@ -162,7 +163,7 @@ class KittiRawLoader(DataLoader):
         # dirname(e.g. 2011_09_26_drive_0001_sync), camera_id(e.g. 02), frame_id(e.g. 0000000001)
         tgt_drive, tgt_cid, tgt_frame_id = frames[tgt_idx].split(' ')
         date = tgt_drive[:10]
-        intrinsics = scale_intrinsics(self.intrinsics[date][tgt_cid], zoom_x, zoom_y)
+        intrinsics = iu.scale_intrinsics(self.intrinsics[date][tgt_cid], zoom_x, zoom_y)
         gt_depth = self.load_depth_map(frames[tgt_idx]) if is_test else None
         example = dict()
         example['image_seq'] = image_seq
@@ -203,8 +204,37 @@ class KittiRawLoader(DataLoader):
 
     def load_depth_map(self, frame):
         drive, cam_id, frame_id = frame.split(' ')
-        depth_file = "{}/{}/image_{}/data/{}.png".format(drive[:10], drive, cam_id, frame_id)
-        # camera_id: 2 is left, 3 is right
-        gt_file, gt_calib, im_size, camera_id = read_file_data(self.dataset_dir, depth_file)
-        depth = generate_depth_map(gt_calib, gt_file, im_size, camera_id, False, True)
+        date = drive[:10]
+        vel = '{}/{}/velodyne_points/data/{}.bin'.format(date, drive, frame_id)
+        img_file = os.path.join(self.dataset_dir, date, drive,
+                                "image_{}/data/{}.png".format(drive[:10], drive, cam_id, frame_id))
+
+        if os.path.isfile(img_file):
+            gt_file = os.path.join(self.dataset_dir, vel)
+            gt_calib = os.path.join(self.dataset_dir, date)
+            im_size = cv2.imread(img_file).shape[:2]
+            depth = generate_depth_map(gt_calib, gt_file, im_size, cam_id, False, True)
+        else:
+            print("load_depth_map: File Not Found!!", img_file)
+            depth = 0
         return depth
+
+
+# def read_file_data(data_root, filename):
+#     date, drive, cam, _, frame_id = filename.split("/")
+# #         camera_id = filename[-1]   # 2 is left, 3 is right
+#     vel = '{}/{}/velodyne_points/data/{}.bin'.format(date, drive, frame_id[:10])
+#     img_file = os.path.join(data_root, filename)
+#     num_probs = 0
+#
+#     if os.path.isfile(img_file):
+#         gt_file = os.path.join(data_root, vel)
+#         gt_calib = os.path.join(data_root, date)
+#         im_size = cv2.imread(img_file).shape[:2]
+#         cam_id = cam[-2:]
+#         return gt_file, gt_calib, im_size, cam_id
+#     else:
+#         num_probs += 1
+#         print('{} missing'.format(img_file))
+#         return [], [], [], []
+#

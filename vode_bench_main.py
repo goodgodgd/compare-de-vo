@@ -104,10 +104,7 @@ def main(_):
     elif opt.mode == 'pred_depth':
         tte.pred_depth(opt, net_model)
     elif opt.mode == 'pred_pose':
-        if opt.model_name == 'geonet_inct4':
-            tte.pred_pose_estimator(opt, net_model)
-        else:
-            tte.pred_pose(opt, net_model)
+        tte.pred_pose(opt, net_model)
     elif opt.mode == 'eval_depth':
         tte.eval_depth(opt)
     elif opt.mode == 'eval_pose':

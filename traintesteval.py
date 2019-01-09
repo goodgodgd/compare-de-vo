@@ -6,10 +6,12 @@ import glob
 import cv2
 import pandas as pd
 
-from data.tfrecord_feeder import dataset_feeder
-import data.kitti.kitti_pose_utils as pu
-import data.kitti.kitti_depth_utils as du
-from model_operator import GeoNetOperator
+from models.tfrecord_feeder import dataset_feeder
+import utils.pred_utils as ru
+import utils.pose_utils as pu
+import utils.eval_utils as eu
+import utils.traj_recon as tu
+from models.model_operator import NetEstimator
 
 
 # ========== TRAIN ==========
@@ -20,7 +22,7 @@ def train(opt, net_model):
     if not os.path.exists(opt.checkpoint_dir):
         os.makedirs(opt.checkpoint_dir)
 
-    model_op = GeoNetOperator(opt, net_model) if "geonet" in opt.model_name else None
+    model_op = NetEstimator(opt, net_model) if "geonet" in opt.model_name else None
     print(opt.model_name, model_op)
 
     def data_feeder():
@@ -75,7 +77,7 @@ def pred_pose(opt, net_model):
 
     print("output length (gt, pred)", len(gt_poses), len(pred_poses))
     # one can evaluate pose errors here but we save results and evaluate it in the evaluation step
-    pu.save_pose_result(pred_poses, frames, opt.pred_out_dir, opt.model_name, opt.seq_length)
+    ru.save_pose_result(pred_poses, frames, opt.pred_out_dir, opt.model_name, opt.seq_length)
     # save_pose_result(gt_poses, opt.pred_out_dir, "ground_truth", frames, opt.seq_length)
 
 
@@ -85,7 +87,7 @@ def pred_pose_estimator(opt, net_model):
     print(opt.pred_out_dir)
     if not os.path.exists(opt.pred_out_dir):
         os.makedirs(opt.pred_out_dir)
-    model_op = GeoNetOperator(opt, net_model) if "geonet" in opt.model_name else None
+    model_op = NetEstimator(opt, net_model) if "geonet" in opt.model_name else None
 
     def data_feeder():
         return dataset_feeder(opt, "test")
@@ -116,7 +118,7 @@ def pred_pose_estimator(opt, net_model):
 
     print("output length (gt, pred)", len(gt_poses), len(pr_poses))
     # one can evaluate pose errors here but we save results and evaluate it in the evaluation step
-    pu.save_pose_result(pr_poses, frames, opt.pred_out_dir, opt.model_name, opt.seq_length)
+    ru.save_pose_result(pr_poses, frames, opt.pred_out_dir, opt.model_name, opt.seq_length)
     # save_pose_result(gt_poses, opt.pred_out_dir, "ground_truth", frames, opt.seq_length)
 
 
@@ -145,8 +147,8 @@ def pred_depth(opt, net_model):
                 break
 
     print("depths shape (gt, pred)", gt_depths[0].shape, pred_depths[0].shape)
-    du.save_gt_depths(gt_depths, opt.pred_out_dir)
-    du.save_pred_depths(pred_depths, opt.pred_out_dir, opt.model_name)
+    ru.save_gt_depths(gt_depths, opt.pred_out_dir)
+    ru.save_pred_depths(pred_depths, opt.pred_out_dir, opt.model_name)
 
 
 # ========== EVALUATION ==========
@@ -206,7 +208,7 @@ def evaluate_depth_errors(pred_depths, gt_files, model_name, min_depth, max_dept
         predi_depth[predi_depth > max_depth] = max_depth
 
         abs_rel, sq_rel, rms, log_rms, a1, a2, a3 = \
-            du.compute_depth_errors(gt_depth[mask], predi_depth[mask])
+            eu.compute_depth_errors(gt_depth[mask], predi_depth[mask])
 
         depth_eval_result = depth_eval_result.append(
             dict(zip(columns, [model_name, i, abs_rel, sq_rel, rms, log_rms, a1, a2, a3])),
@@ -259,7 +261,7 @@ def evaluate_drive_subseq(gt_path, pred_path, model, drive, subseq_errors):
         assert (gt_short_seq.shape == (5, 8) and pred_short_seq.shape[1] == 8)
         try:
             # compute error between predicted poses and gt poses
-            sseq_err = pu.compute_pose_error(gt_short_seq, pred_short_seq, ambiguous_scale=True)
+            sseq_err = eu.compute_pose_seq_error(gt_short_seq, pred_short_seq, ambiguous_scale=True)
             for pose_err in sseq_err:
                 subseq_errors = subseq_errors.append(
                     dict(zip(sseq_cols, [model, drive, i, pose_err[0], pose_err[1], pose_err[2]])),
@@ -323,9 +325,9 @@ def eval_traj(opt):
             # reconstruct full trajectory based on predictd relative poses
             # orb sequences are not fully predicted, so they would not be reconstructed
             if "orb" in model:
-                pu.reconstruct_traj_and_save(gt_path, pred_path, drive, 2, True)
+                tu.reconstruct_traj_and_save(gt_path, pred_path, drive, 2, True)
             else:
-                pu.reconstruct_traj_and_save(gt_path, pred_path, drive, opt.seq_length, False)
+                tu.reconstruct_traj_and_save(gt_path, pred_path, drive, opt.seq_length, False)
             traj_errors = evaluate_drive_traj(gt_path, pred_path, model, drive, traj_errors)
 
     traj_eval_result = evaluate_traj_errors(traj_errors)
@@ -350,7 +352,7 @@ def evaluate_drive_traj(gt_path, pred_path, model, drive, traj_errors):
         try:
             # compute error between predicted poses and gt poses
             # reconstructed trajectory has physical scale
-            traj_err = pu.compute_pose_error(gt_traj, pred_traj, ambiguous_scale=False)
+            traj_err = eu.compute_pose_seq_error(gt_traj, pred_traj, ambiguous_scale=False)
             print("evaluate_drive_traj", model, drive, interval, len(traj_err))
             for pose_err in traj_err:
                 traj_errors = traj_errors.append(

@@ -9,7 +9,7 @@ import cv2
 
 module_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if module_path not in sys.path: sys.path.append(module_path)
-from data.tfrecord_feeder import dataset_feeder
+from models.tfrecord_feeder import dataset_feeder
 
 
 def normalize_depth_for_display(depth, pc=95, crop_percent=0, normalizer=None, cmap='viridis'):
