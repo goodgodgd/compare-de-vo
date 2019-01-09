@@ -60,13 +60,6 @@ width_to_focal[1241] = 718.856
 width_to_focal[1224] = 707.0493
 width_to_focal[1238] = 718.3351
 
-def load_gt_disp_kitti(path):
-    gt_disparities = []
-    for i in range(200):
-        disp = cv2.imread(path + "/training/disp_noc_0/" + str(i).zfill(6) + "_10.png", -1)
-        disp = disp.astype(np.float32) / 256
-        gt_disparities.append(disp)
-    return gt_disparities
 
 def convert_disps_to_depths_kitti(gt_disparities, pred_disparities):
     gt_depths = []
@@ -94,14 +87,6 @@ def convert_disps_to_depths_kitti(gt_disparities, pred_disparities):
 
 ###############################################################################
 # EIGEN
-
-def read_text_lines(file_path):
-    f = open(file_path, 'r')
-    lines = f.readlines()
-    f.close()
-    lines = [l.rstrip() for l in lines]
-    return lines
-
 
 def read_file_data(files, data_root):
     gt_files = []
